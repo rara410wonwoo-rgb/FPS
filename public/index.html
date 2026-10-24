@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PolyZone: Tactics</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "/vendor/three/three.module.js",
+      "three/addons/": "/vendor/three-addons/",
+      "socket.io-client": "/vendor/socket.io/socket.io.esm.min.js",
+      "qrcode-generator": "/vendor/qrcode/qrcode.mjs"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="viewport"></div>
+  <div id="loading"><div class="brand"><span class="mark">▲</span>PolyZone<span class="sub">: Tactics</span></div><div class="bar"><div id="loading-fill"></div></div><p id="loading-text">Loading battlefield…</p></div>
+
+  <!-- ───────── HUD ───────── -->
+  <div id="hud" hidden>
+    <div id="hud-tl" class="panel">
+      <div><span id="net-dot" class="dot warn"></span><span id="net-status">Connecting…</span></div>
+      <div id="ctrl-status">📱 Controller not connected</div>
+      <div class="row"><span id="fps">0 FPS</span><button id="btn-mute-hud" class="icon" title="Mute (M)">🔊</button></div>
+    </div>
+
+    <div id="hud-compass"><canvas id="compass" width="520" height="34"></canvas><div id="heading">000</div></div>
+
+    <div id="hud-zone" class="panel">
+      <div id="zone-phase">Zone</div>
+      <div id="zone-timer">0:00</div>
+      <div id="zone-info"></div>
+    </div>
+
+    <div id="hud-tr">
+      <canvas id="minimap" width="220" height="220"></canvas>
+    </div>
+    <div id="hud-right">
+      <div class="stats"><span id="stat-alive">Alive 12/12</span><span id="stat-kills">Kills 0</span></div>
+      <div id="killfeed"></div>
+    </div>
+
+    <div id="stance"><span id="stance-icon">🧍</span><span id="stance-text">Standing</span></div>
+    <div id="hud-hp" class="panel">
+      <div class="label">HP <b id="hp-text">100</b></div>
+      <div class="bar"><div id="hp-fill"></div></div>
+    </div>
+
+    <div id="hud-weapon" class="panel">
+      <div id="weapon-name">Kestrel Rifle</div>
+      <div class="ammo"><b id="ammo-mag">24</b><span>/</span><span id="ammo-reserve">96</span></div>
+      <div id="weapon-slots"></div>
+    </div>
+
+    <div id="crosshair"><i></i><i></i><i></i><i></i><div id="hitmarker"><i></i><i></i><i></i><i></i></div></div>
+    <div id="reload-bar"><div id="reload-fill"></div><span>Reloading</span></div>
+    <div id="banner"></div>
+    <div id="prompt"></div>
+    <div id="toast"></div>
+    <div id="zone-warning"></div>
+    <div id="spectate-label" hidden></div>
+    <button id="btn-phone-hud" title="Connect phone controller (P)">📱 Connect phone</button>
+    <button id="lock-hint" hidden>Click to fight — aim with the mouse (Esc: menu)</button>
+    <div id="damage-vignette"></div>
+    <div id="zone-vignette"></div>
+
+    <div id="help" class="panel" hidden>
+      <h3>Controls</h3>
+      <ul>
+        <li><b>WASD</b> move · <b>Mouse</b> look/aim (click the screen to capture the mouse)</li>
+        <li><b>Shift</b> sprint · <b>Space</b> jump (vault in front of low cover) · <b>C</b> crouch (slide while sprinting)</li>
+        <li><b>V</b> switch view: third person → first person → top-down</li>
+        <li><b>Left click</b> fire · <b>Right click</b> aim down sights</li>
+        <li><b>R</b> reload · <b>E</b> pick up · <b>Q</b> swap weapon · <b>Arrow keys</b> turn</li>
+        <li><b>Wheel</b> zoom · <b>M</b> mute · <b>H</b> help · <b>P</b> phone · <b>Esc</b> menu</li>
+      </ul>
+      <p>The white circle is the next safe zone. You keep taking damage outside the red zone.</p>
+    </div>
+  </div>
+
+  <!-- ───────── Main menu ───────── -->
+  <div id="menu-main" class="overlay">
+    <div class="card">
+      <div class="brand"><span class="mark">▲</span>PolyZone<span class="sub">: Tactics</span></div>
+      <p class="tagline">Third/first-person 3D battle royale · 12 players · server-authoritative</p>
+      <label>Callsign <input id="name-input" maxlength="16" autocomplete="off"></label>
+      <button id="btn-solo" class="primary">Solo play (11 bots)</button>
+      <button id="btn-solo-phone" class="phone">📱 Play with your phone as controller</button>
+      <div id="multi-section">
+        <div class="sep">Online room (up to 4 players + bots)</div>
+        <button id="btn-create">Create room</button>
+        <div class="join">
+          <input id="code-input" maxlength="5" placeholder="Room code" autocomplete="off">
+          <button id="btn-join">Join</button>
+        </div>
+      </div>
+      <p id="local-note" class="muted" hidden>This web build runs the server simulation inside your browser and is solo only. Online rooms and the phone controller need the Node server (npm start) version.</p>
+      <p id="main-status" class="status"></p>
+      <p class="fine">WASD move · Shift sprint · Space jump/vault · C crouch/slide · Left click fire · Right click ADS · R reload · E pick up · V switch view<br>“PolyZone: Tactics” is a working title.</p>
+    </div>
+  </div>
+
+  <!-- ───────── Lobby ───────── -->
+  <div id="menu-lobby" class="overlay" hidden>
+    <div class="card">
+      <h2>Lobby</h2>
+      <div class="roomcode">Room code <b id="lobby-code">-----</b></div>
+      <p id="lobby-state" class="muted"></p>
+      <ul id="lobby-list"></ul>
+      <p id="lobby-count" class="muted"></p>
+      <button id="btn-start" class="primary">Start match</button>
+      <p id="lobby-wait" class="muted">Waiting for the host to start the match…</p>
+      <button id="btn-lobby-pair">📱 Connect phone controller</button>
+      <div id="lobby-pair-box" class="pair" hidden></div>
+      <button id="btn-lobby-leave" class="ghost">Leave</button>
+    </div>
+  </div>
+
+  <!-- ───────── Pause menu (server time keeps running in multiplayer) ───────── -->
+  <div id="menu-pause" class="overlay dim" hidden>
+    <div class="card">
+      <h2>Menu</h2>
+      <p class="muted">While the menu is open your input is neutral. The match keeps running.</p>
+      <button id="btn-resume" class="primary">Resume</button>
+      <div class="settings">
+        <label>Volume <input id="vol" type="range" min="0" max="100"></label>
+        <label class="check"><input id="mute" type="checkbox"> Mute</label>
+        <label>View
+          <select id="view-mode">
+            <option value="tps">Third person, over the shoulder (TPP)</option>
+            <option value="fps">First person (FPP)</option>
+            <option value="top">Top-down (classic)</option>
+          </select>
+        </label>
+        <label>Mouse sensitivity <input id="sens" type="range" min="20" max="300"></label>
+        <label>Graphics quality
+          <select id="quality">
+            <option value="low">Low (no shadows or post-processing)</option>
+            <option value="medium">Medium (shadows + bloom and color grading)</option>
+            <option value="high">High (high-res shadows + ambient occlusion)</option>
+          </select>
+        </label>
+      </div>
+      <button id="btn-menu-pair">📱 Connect phone controller</button>
+      <div id="menu-pair-box" class="pair" hidden></div>
+      <details class="ble">
+        <summary>BLE controller (experimental · untested on hardware)</summary>
+        <p class="muted">Only for a separate BLE device that provides the GATT service. Ordinary phone browsers cannot connect to each other directly over Bluetooth.</p>
+        <button id="btn-ble">Connect BLE device</button>
+        <p id="ble-status" class="muted">Not connected</p>
+      </details>
+      <button id="btn-help">Show controls (H)</button>
+      <button id="btn-restart-menu" hidden>Restart match (host)</button>
+      <button id="btn-menu-leave" class="ghost">Back to main menu</button>
+    </div>
+  </div>
+
+  <div id="death-panel" class="overlay dim" hidden>
+    <div class="card small">
+      <h2 id="death-title">Eliminated</h2>
+      <p id="death-sub"></p>
+      <button id="btn-spectate" class="primary">Spectate</button>
+      <button id="btn-death-restart">Start new match</button>
+      <button id="btn-death-leave" class="ghost">Main menu</button>
+    </div>
+  </div>
+
+  <div id="results" class="overlay dim" hidden>
+    <div class="card">
+      <h2 id="results-title">Match over</h2>
+      <p id="results-sub"></p>
+      <div class="table-wrap">
+        <table><thead><tr><th>Place</th><th>Name</th><th>Kills</th><th>Survived</th></tr></thead><tbody id="results-body"></tbody></table>
+      </div>
+      <button id="btn-results-restart" class="primary">Play again</button>
+      <p id="results-wait" class="muted">Waiting for the host to start the next match…</p>
+      <button id="btn-results-close">View battlefield</button>
+      <button id="btn-results-leave" class="ghost">Main menu</button>
+    </div>
+  </div>
+
+  <!-- ───────── Phone connection (QR) ───────── -->
+  <div id="phone-panel" class="overlay dim" hidden>
+    <div class="card phone-card">
+      <h2>📱 Connect phone controller</h2>
+      <p class="muted">Scan the QR code with your phone camera to connect instantly. Hold your phone sideways to play.</p>
+      <div id="phone-qr"></div>
+      <div id="phone-code" class="pair-code">----</div>
+      <div id="phone-url" class="pair-url"></div>
+      <p id="phone-status" class="status">Creating code…</p>
+      <p class="muted" id="phone-note"></p>
+      <button id="btn-phone-close" class="primary">Close</button>
+    </div>
+  </div>
+
+  <div id="offline-overlay" class="overlay dim" hidden>
+    <div class="card small">
+      <h2>Lost connection to the server</h2>
+      <p>Trying to reconnect. Once connected, the full match state is reloaded and play continues.</p>
+    </div>
+  </div>
+
+  <script type="module" src="/game.js"></script>
+</body>
+</html>

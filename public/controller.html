@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#121310">
+  <title>PolyZone Controller</title>
+  <script type="importmap">
+  { "imports": { "socket.io-client": "/vendor/socket.io/socket.io.esm.min.js" } }
+  </script>
+  <style>
+    :root { --font: system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; --accent: #f0b84a; --danger: #ff5a3c; --ui: rgba(255, 255, 255, 0.16); --line: rgba(255, 255, 255, 0.55); }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; overflow: hidden; color: #f2efe6; font-family: var(--font); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
+    body { touch-action: none; background: radial-gradient(ellipse at 50% 35%, #3b4a5c 0%, #20262c 55%, #121411 100%); }
+    [hidden] { display: none !important; }
+    #pad { position: fixed; inset: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); touch-action: none; }
+    /* Left half = movement joystick, right half = look (swipe) */
+    #movezone { position: absolute; left: 0; top: 0; bottom: 0; width: 45%; touch-action: none; }
+    #lookzone { position: absolute; right: 0; top: 0; bottom: 0; width: 55%; touch-action: none; }
+    canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    #status { position: fixed; top: calc(6px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); font-size: 12px; background: rgba(0,0,0,0.45); padding: 4px 12px; border-radius: 14px; display: flex; gap: 10px; z-index: 5; white-space: nowrap; pointer-events: none; }
+    #hp { position: fixed; bottom: calc(10px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: 34%; z-index: 5; pointer-events: none; font-size: 11px; font-weight: 800; }
+    #hp .bar { height: 6px; background: rgba(0,0,0,0.5); margin-top: 3px; transform: skewX(-18deg); }
+    #hp .fill { height: 100%; width: 100%; background: #fff; transition: width 0.15s; }
+    .ok { color: #7fd36a; } .bad { color: var(--danger); } .warn { color: var(--accent); }
+    .btn { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border-radius: 50%; border: 2px solid var(--line); background: var(--ui); color: #fff; touch-action: none; font-weight: 800; font-size: 10px; letter-spacing: 0.04em; backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); box-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+    .btn svg { width: 46%; height: 46%; fill: none; stroke: #fff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    .btn.on { background: rgba(240, 184, 74, 0.55); border-color: var(--accent); transform: scale(0.94); }
+    .btn.toggled { background: rgba(240, 184, 74, 0.4); border-color: var(--accent); }
+    /* Big fire button on the right + secondary fire on the left (CODM-style two-thumb firing) */
+    #fire { right: 13%; bottom: 22%; width: 19vh; height: 19vh; }
+    #fire2 { left: 4%; top: 30%; width: 13vh; height: 13vh; }
+    #ads { right: 4%; bottom: 46%; width: 13vh; height: 13vh; }
+    #jump { right: 3%; bottom: 23%; width: 13vh; height: 13vh; }
+    #crouch { right: 6%; bottom: 5%; width: 12vh; height: 12vh; }
+    #reload { right: 27%; bottom: 5%; width: 11vh; height: 11vh; }
+    #interact { right: 33%; bottom: 40%; width: 11vh; height: 11vh; }
+    #swap { left: 50%; transform: translateX(-50%); bottom: calc(40px + env(safe-area-inset-bottom)); width: auto; height: auto; border-radius: 6px; padding: 6px 14px; font-size: 12px; }
+    #swap.on { transform: translateX(-50%) scale(0.94); }
+    #sprintlock { position: absolute; left: 0; right: 0; top: 4%; height: 22%; display: flex; align-items: flex-start; justify-content: center; pointer-events: none; font-size: 10px; color: rgba(255,255,255,0.6); }
+    #sprintlock.on { color: var(--accent); font-weight: 800; }
+    .overlay { position: fixed; inset: 0; background: rgba(10,11,9,0.94); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 20; }
+    .card { width: min(440px, 100%); display: flex; flex-direction: column; gap: 10px; border-top: 3px solid var(--accent); background: #1a1b16; padding: 18px; max-height: 100%; overflow: auto; }
+    .card h1 { margin: 0; font-size: 20px; }
+    .card p, .card li { margin: 0; font-size: 13px; line-height: 1.5; color: #b5ae9b; }
+    .card ul { margin: 0; padding-left: 18px; }
+    input { font: inherit; font-size: 24px; letter-spacing: 0.2em; text-transform: uppercase; text-align: center; padding: 10px; background: #0d0e0b; color: #ece6d6; border: 1px solid #4a4638; font-family: ui-monospace, Menlo, monospace; touch-action: manipulation; }
+    button.go { font: inherit; font-weight: 800; padding: 14px; background: var(--accent); border: 0; color: #1d1a10; touch-action: manipulation; }
+    #msg { color: var(--accent); min-height: 1.2em; }
+    #tap-full { position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 6; background: rgba(0,0,0,0.7); border: 1px solid var(--accent); padding: 10px 16px; border-radius: 8px; font-weight: 800; font-size: 13px; pointer-events: none; }
+    #rotate { z-index: 30; }
+    #rotate .icon { font-size: 54px; text-align: center; }
+    @media (orientation: landscape) { #rotate { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div id="pad">
+    <div id="movezone"><canvas id="stick"></canvas><div id="sprintlock">▲ Push all the way to sprint</div></div>
+    <div id="lookzone"><canvas id="lookpad"></canvas></div>
+    <div id="fire" class="btn" title="Fire"><svg viewBox="0 0 24 24"><path d="M9 3h6l1 4v13H8V7z"/><path d="M8 11h8"/></svg>FIRE</div>
+    <div id="fire2" class="btn" title="Fire"><svg viewBox="0 0 24 24"><path d="M9 3h6l1 4v13H8V7z"/></svg></div>
+    <div id="ads" class="btn" title="Aim down sights"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg>ADS</div>
+    <div id="jump" class="btn" title="Jump / vault"><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>JUMP</div>
+    <div id="crouch" class="btn" title="Crouch / slide"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M12 8v5l-4 3v4M12 13l5 3h2"/></svg>CROUCH</div>
+    <div id="reload" class="btn" title="Reload"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>R</div>
+    <div id="interact" class="btn" title="Pick up"><svg viewBox="0 0 24 24"><path d="M7 11V6a2 2 0 0 1 4 0v5M11 10V4a2 2 0 0 1 4 0v7M15 9a2 2 0 0 1 4 0v5a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-3-5a2 2 0 0 1 3-2l2 2"/></svg>PICK</div>
+    <div id="swap" class="btn">⇄ <span id="weapon-label">Swap weapon</span></div>
+  </div>
+  <div id="tap-full" hidden>✅ Connected · tap the screen once to go full screen</div>
+  <div id="status"><span id="st-conn" class="warn">Not connected</span><span id="st-ping"></span><span id="st-game"></span></div>
+  <div id="hp"><span id="hp-text">HP 100</span><div class="bar"><div class="fill" id="hp-fill"></div></div></div>
+
+  <div id="start" class="overlay">
+    <div class="card">
+      <h1>📱 PolyZone Controller</h1>
+      <p>On the PC, press <b>Connect phone</b> (or open the menu with Esc) and enter the 8-character code shown, or just scan the QR code. Your phone and PC must be on the same Wi-Fi, or use the online address.</p>
+      <input id="code" maxlength="9" placeholder="ABCD-EFGH" autocomplete="off" autocapitalize="characters">
+      <button id="go" class="go">Connect and start</button>
+      <p id="msg"></p>
+      <ul id="caps"></ul>
+      <p>Anywhere on the left: movement joystick (push all the way up to sprint) · drag on the right: look around · hold FIRE to shoot · JUMP: jump / vault over cover · CROUCH: crouch (slide while sprinting)</p>
+    </div>
+  </div>
+  <div id="rotate" class="overlay"><div class="card"><div class="icon">⟳</div><h1>Please turn your device sideways</h1><p>The controller is designed for landscape. On devices without orientation lock (iPhone, etc.) rotate it yourself.</p></div></div>
+
+  <script type="module" src="/controller.js"></script>
+</body>
+</html>

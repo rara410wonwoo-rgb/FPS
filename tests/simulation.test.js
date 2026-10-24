@@ -21,7 +21,8 @@ describe('map', () => {
   });
   it('has buildings, rocks, trees, roads and the central structure', () => {
     const kinds = new Set(map.obstacles.map((o) => o.kind));
-    for (const k of ['building', 'rock', 'tree', 'crate', 'wall', 'tower']) assert.ok(kinds.has(k), k);
+    for (const k of ['rock', 'tree', 'crate', 'wall', 'tower']) assert.ok(kinds.has(k), k);
+    assert.ok(map.houses.length > 20);
     assert.ok(map.roads.length >= 4);
     for (const o of map.obstacles) assert.ok(o.minX >= -WORLD_HALF && o.maxX <= WORLD_HALF && o.minZ >= -WORLD_HALF && o.maxZ <= WORLD_HALF);
   });
@@ -122,7 +123,7 @@ describe('zone', () => {
   });
   it('outside the safe zone, damage is based on delta time', () => {
     const m = emptyMatch([], ['A', 'B']);
-    const a = place(m, 'A', 99, 99); // outside the radius-135 circle (diagonal distance 140)
+    const a = place(m, 'A', WORLD_HALF-1, WORLD_HALF-1); // outside the radius-135 circle (diagonal distance 140)
     place(m, 'B', 0, 0);
     const now = { t: 0 };
     stepN(m, 60, now); // 2s × 1 dps
@@ -152,8 +153,8 @@ describe('full match loop', () => {
   });
   it('draw when everyone is eliminated', () => {
     const m = emptyMatch([], ['A', 'B']);
-    const a = place(m, 'A', 99, 99);
-    const b = place(m, 'B', -99, -99);
+    const a = place(m, 'A', WORLD_HALF-1, WORLD_HALF-1);
+    const b = place(m, 'B', -WORLD_HALF+1, -WORLD_HALF+1);
     a.hp = 0.5; b.hp = 0.5;
     stepN(m, 30, { t: 0 });
     assert.equal(m.state, 'FINISHED');

@@ -36,7 +36,7 @@ export function copyMoveState(from, to) {
   for (const k of MOVE_KEYS) to[k] = from[k] ?? (typeof to[k] === 'boolean' ? false : 0);
   return to;
 }
-export const MOVE_KEYS = ['y', 'vy', 'crouch', 'prevCrouch', 'prevJump', 'slideT', 'slideX', 'slideZ', 'vaultT', 'vaultFX', 'vaultFZ', 'vaultTX', 'vaultTZ', 'vaultH', 'sprint'];
+export const MOVE_KEYS = ['drop','y', 'vy', 'crouch', 'prevCrouch', 'prevJump', 'slideT', 'slideX', 'slideZ', 'vaultT', 'vaultFX', 'vaultFZ', 'vaultTX', 'vaultTZ', 'vaultH', 'sprint'];
 
 // 0 standing, 1 crouching, 2 sliding, 3 vaulting, 4 airborne
 export function stanceOf(p) {
@@ -77,6 +77,19 @@ function raycastExit(b, ox, oz, dx, dz) {
 // Move pos {x,z,...} for dt seconds according to input {mx,mz,aim,ads,fire,jump,crouch,sprint}.
 // Returns true if it moved horizontally.
 export function stepMovement(index, pos, input, dt, weaponId) {
+  if (pos.drop) {
+    if (pos.drop === 1) {
+      pos.x += 24*dt;
+      if (input.jump || pos.x > (pos.dropAt ?? 270)) pos.drop=2;
+    } else {
+      pos.y = Math.max(0,pos.y-(pos.drop===3?6:24)*dt);
+      if (pos.y < 38 || input.jump) pos.drop=3;
+      const [mx,mz]=normalizeMove(input.mx,input.mz);
+      moveCircle(index,pos,mx*12*dt,mz*12*dt,PLAYER_RADIUS);
+      if (pos.y === 0) {pos.drop=0;pos.vy=0;}
+    }
+    return true;
+  }
   if (pos.y === undefined) initMoveState(pos);
   const M = MOVEMENT;
   const x0 = pos.x;
@@ -170,5 +183,6 @@ export function stepMovement(index, pos, input, dt, weaponId) {
 
 // Whether movement must keep advancing without input (airborne, sliding, vaulting)
 export function needsStep(p) {
+  if (p.drop) return true;
   return (p.y ?? 0) > 0 || (p.slideT ?? 0) > 0 || (p.vaultT ?? 0) > 0;
 }

@@ -33,7 +33,7 @@ export const S2C = {
   RATE_LIMITED: 'net:rate_limited',
 };
 
-const INPUT_KEYS = new Set(['seq', 'mx', 'mz', 'aim', 'fire', 'ads', 'reload', 'interact', 'swap', 'jump', 'crouch', 'sprint']);
+const INPUT_KEYS = new Set(['pitch', 'seq', 'mx', 'mz', 'aim', 'fire', 'ads', 'reload', 'interact', 'swap', 'jump', 'crouch', 'sprint']);
 const BOOL_KEYS = ['fire', 'ads', 'reload', 'interact', 'swap', 'jump', 'crouch', 'sprint'];
 
 function isPlainObject(v) {
@@ -44,7 +44,7 @@ function isPlainObject(v) {
 export function validateInput(m, { requireSeq = true } = {}) {
   if (!isPlainObject(m)) return null;
   const keys = Object.keys(m);
-  if (keys.length > 12) return null;
+  if (keys.length > 13) return null;
   for (const k of keys) if (!INPUT_KEYS.has(k)) return null;
   if (requireSeq) {
     if (!Number.isInteger(m.seq) || m.seq < 0 || m.seq > 2147483647) return null;
@@ -56,7 +56,9 @@ export function validateInput(m, { requireSeq = true } = {}) {
   }
   if (Math.abs(m.mx) > 1.001 || Math.abs(m.mz) > 1.001) return null;
   if (Math.abs(m.aim) > Math.PI * 2 + 0.001) return null;
+  if (m.pitch !== undefined && (typeof m.pitch !== 'number' || !Number.isFinite(m.pitch) || Math.abs(m.pitch) > 1.45)) return null;
   const out = {
+    pitch: m.pitch ?? 0,
     seq: m.seq ?? 0,
     mx: Math.max(-1, Math.min(1, m.mx)),
     mz: Math.max(-1, Math.min(1, m.mz)),

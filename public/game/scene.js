@@ -540,6 +540,13 @@ export class GameScene {
   // ---------------- structures ----------------
   buildObstacles() {
     const obs = this.map.obstacles;
+    for (const h of this.map.houses ?? []) {
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(h.maxX-h.minX,0.08,h.maxZ-h.minZ),new THREE.MeshStandardMaterial({color:0x77736c,roughness:0.95}));
+      floor.position.set((h.minX+h.maxX)/2,0.01,(h.minZ+h.maxZ)/2); floor.receiveShadow=true; this.scene.add(floor);
+      const roof=new THREE.Mesh(new THREE.BoxGeometry(h.maxX-h.minX+0.4,0.2,h.maxZ-h.minZ+0.4),new THREE.MeshStandardMaterial({color:0x505b60,roughness:0.8}));
+      roof.position.set((h.minX+h.maxX)/2,h.h+0.1,(h.minZ+h.maxZ)/2);roof.castShadow=true;this.scene.add(roof);
+      this.solidMeshes.push(roof);
+    }
     const unit = new THREE.BoxGeometry(1, 1, 1);
     unit.translate(0, 0.5, 0);
     const rand = mulberry32(321);

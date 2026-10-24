@@ -212,7 +212,8 @@ moveZone.addEventListener('pointercancel', endStick);
 // ───────── Look (drag on the right side) ─────────
 const lookZone = $('lookzone');
 const look = { id: null, x: 0, y: 0 };
-function rotate(dx) {
+function rotate(dx, dy = 0) {
+  state.pitch = Math.max(-1.4, Math.min(1.4, (state.pitch ?? 0) - dy * LOOK_SENS * (state.ads ? 0.55 : 1)));
   yaw += dx * LOOK_SENS * (state.ads ? 0.55 : 1);
   lastLookAt = performance.now();
   updateMove();
@@ -220,7 +221,7 @@ function rotate(dx) {
 lookZone.addEventListener('pointerdown', (e) => { if (look.id !== null) return; look.id = e.pointerId; look.x = e.clientX; look.y = e.clientY; capture(lookZone, e); e.preventDefault(); });
 lookZone.addEventListener('pointermove', (e) => {
   if (e.pointerId !== look.id) return;
-  rotate(e.clientX - look.x);
+  rotate(e.clientX - look.x, e.clientY - look.y);
   look.x = e.clientX; look.y = e.clientY;
 });
 const endLook = (e) => { if (e.pointerId === look.id) look.id = null; };
@@ -237,7 +238,7 @@ for (const [id, kind] of BUTTONS) {
   el.addEventListener('pointerdown', (e) => {
     if (b.id !== null) return;
     b.id = e.pointerId;
-    b.lx = e.clientX;
+    b.lx = e.clientX; b.ly = e.clientY;
     capture(el, e);
     el.classList.add('on');
     if (id === 'fire' || id === 'fire2') state.fire = true;
@@ -251,8 +252,8 @@ for (const [id, kind] of BUTTONS) {
   });
   el.addEventListener('pointermove', (e) => {
     if (e.pointerId !== b.id || !(id === 'fire' || id === 'fire2')) return;
-    rotate(e.clientX - b.lx);
-    b.lx = e.clientX;
+    rotate(e.clientX - b.lx, e.clientY - b.ly);
+    b.lx = e.clientX; b.ly = e.clientY;
   });
   const up = (e) => {
     if (e.pointerId !== b.id) return;
@@ -274,7 +275,7 @@ function send(force = false) {
   if (!paired || !socket.connected) return;
   updateMove();
   const msg = {
-    mx: round(state.mx), mz: round(state.mz), aim: round(state.aim), fire: state.fire, ads: state.ads,
+    mx: round(state.mx), mz: round(state.mz), aim: round(state.aim), pitch: round(state.pitch ?? 0), fire: state.fire, ads: state.ads,
     reload: state.reload, interact: state.interact, swap: state.swap, jump: state.jump, crouch: state.crouch, sprint: state.sprint,
   };
   const key = JSON.stringify(msg);

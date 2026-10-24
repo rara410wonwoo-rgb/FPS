@@ -1,6 +1,6 @@
 // Camera rig
 //  - 'tps': over-the-shoulder third person (default). Aims from behind the right shoulder
-//  - 'fps': first person. Mouse-look yaw = server aim; pitch is visual only (hits are horizontal 2D)
+//  - 'fps': first person. Mouse-look yaw = server aim; pitch is transmitted for server 3D hitscan
 //  - 'top': the classic angled top-down view (switch with V)
 //  - spectating: chase camera behind the target
 import * as THREE from 'three';
@@ -62,7 +62,7 @@ export class CameraRig {
     this.focus.set(x, 0, z);
     this.trauma = Math.max(0, this.trauma - dt * 2.2);
     const moving = Math.min(1, speed / 7);
-    this.bobAmt += (moving * (ads ? 0.25 : 1) - this.bobAmt) * Math.min(1, dt * 8);
+    this.bobAmt += (moving * (ads ? 0 : 1) - this.bobAmt) * Math.min(1, dt * 8);
     this.bob += dt * (6 + speed * 0.9);
     this.recoilPitch = Math.max(0, this.recoilPitch - dt * (0.25 + this.recoilPitch * 6));
     const by = Math.abs(Math.sin(this.bob)) * 0.045 * this.bobAmt;

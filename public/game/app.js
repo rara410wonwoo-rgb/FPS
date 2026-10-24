@@ -310,12 +310,12 @@ class App {
     const dz = tr.z1 - tr.z0;
     const dist = Math.hypot(dx, dz);
     if (dist < 0.05) return;
-    let endY = tr.h === 1 ? 1.3 : 1.25;
+    let endY = tr.y1 ?? (tr.h === 1 ? 1.3 : 1.25);
     // My own shots: trace height follows the camera aim line (pitch)
     const cam = this.rig.camera.position;
     const camDir = this.rig.camera.getWorldDirection(new THREE.Vector3());
     const camSlope = camDir.y / Math.max(0.05, Math.hypot(camDir.x, camDir.z));
-    if (ownFps && tr.h !== 1) endY = THREE.MathUtils.clamp(cam.y + camSlope * Math.hypot(tr.x1 - cam.x, tr.z1 - cam.z), -50, 60);
+    if (tr.y1 === undefined && ownFps && tr.h !== 1) endY = THREE.MathUtils.clamp(cam.y + camSlope * Math.hypot(tr.x1 - cam.x, tr.z1 - cam.z), -50, 60);
     const end = new THREE.Vector3(tr.x1, endY, tr.z1);
     let normal = null;
     if (ownFps && endY < 0 && tr.h !== 1) {
@@ -517,6 +517,7 @@ class App {
 
   showScreen(name) {
     this.screen = name;
+    if(this.dropHint) this.dropHint.hidden=true;
     if (this.scopeOverlay) this.scopeOverlay.hidden = true;
     this.debug.screen = name;
     $('menu-main').hidden = name !== 'main';
@@ -696,7 +697,7 @@ class App {
     const aimChanged = Math.abs(wrapAngle(aim - this.lastSentAim)) > 0.01;
     const now = performance.now();
     if (!(active || aimChanged || this.wasActive || now - this.lastSentAt > INPUT_HEARTBEAT_MS)) return;
-    const msg = { seq: ++this.net.seq, mx: s.mx, mz: s.mz, aim: wrapAngle(aim), fire: s.fire, ads: s.ads, reload: s.reload, interact: s.interact, swap: s.swap, jump: !!s.jump, crouch: !!s.crouch, sprint: !!s.sprint };
+    const msg = { seq: ++this.net.seq, mx: s.mx, mz: s.mz, aim: wrapAngle(aim), pitch: this.isLookActive() ? this.input.pitch : 0, fire: s.fire, ads: s.ads, reload: s.reload, interact: s.interact, swap: s.swap, jump: !!s.jump, crouch: !!s.crouch, sprint: !!s.sprint };
     this.transport.emit(C2S.INPUT, msg);
     this.net.predict(msg);
     this.lastSentAt = now;
@@ -758,12 +759,12 @@ class App {
     const alive = !!selfSnap?.al;
     const usingKeyboard = alive && !net.ctrl && !this.menuOpen;
     const view = this.settings.view;
-    const fps = view === 'fps';
-    const tps = view === 'tps';
+    const fps = view === 'fps' || (view === 'tps' && (usingKeyboard ? this.input.ads : !!selfSnap?.ads));
+    const tps = view === 'tps' && !fps;
     const look = fps || tps;
     if (selfPos && usingKeyboard && !this.ble?.connected) {
       if (look) {
-        this.localAim = wrapAngle(this.tpsAim ?? this.input.yaw);
+        this.localAim = wrapAngle(this.input.yaw);
         if (fps) this.localAim = wrapAngle(this.input.yaw);
       } else {
         const a = this.input.aimFrom(this.rig.camera, selfPos.x, selfPos.z);
@@ -773,7 +774,7 @@ class App {
       // A controller aims: the camera smoothly follows the server aim angle
       const target = this.ble?.connected ? this.localAim : selfSnap.a;
       this.input.yaw += wrapAngle(target - this.input.yaw) * Math.min(1, dt * 12);
-      this.input.pitch *= Math.exp(-dt * 4);
+      this.input.pitch += ((selfSnap.pitch ?? 0) - this.input.pitch) * Math.min(1, dt * 12);
       if (!this.ble?.connected) this.localAim = selfSnap.a;
     }
 
@@ -797,6 +798,25 @@ class App {
       tr.vz += (ivz - tr.vz) * kk;
       tr.x = x; tr.z = z;
       this.speedTrack.set(p.id, tr);
+      if (p.drop === 2 || p.drop === 3) {
+        if (!s.canopy) {
+          s.canopy=new THREE.Mesh(new THREE.SphereGeometry(2.5,12,6,0,Math.PI*2,0,Math.PI/2),new THREE.MeshStandardMaterial({color:0xb3ac82,side:THREE.DoubleSide,roughness:0.9}));
+          s.canopy.position.y=4; s.root.add(s.canopy);
+        }
+        s.canopy.visible=p.drop===3;
+      } else if (s.canopy) s.canopy.visible=false;
+      if (!this.aircraft) {
+        this.aircraft=new THREE.Group(); const mat=new THREE.MeshStandardMaterial({color:0x788184,roughness:0.65});
+        for(const [w,h,d,x,y,z] of [[16,2,2,0,0,0],[3,0.3,19,-1,0,0],[3,0.3,7,-6,1,0],[2,3,0.3,-6,1,0]]) {
+          const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);this.aircraft.add(m);
+        }
+        this.gscene.scene.add(this.aircraft);
+      }
+      const plane=players.find(q=>q.drop===1);
+      this.aircraft.visible=!!plane;
+      if(plane) this.aircraft.position.set(plane.x,plane.y+2,plane.z);
+      if (!this.dropHint) {this.dropHint=document.createElement('div');this.dropHint.style.cssText='position:fixed;top:18%;left:25%;width:50%;text-align:center;color:white;background:#101923bb;padding:12px;pointer-events:none;z-index:30';document.body.append(this.dropHint);}
+      if(isSelf) {this.dropHint.hidden=!p.drop;this.dropHint.textContent=p.drop===1?'SPACE / JUMP — Exit aircraft':p.drop===2?'JUMP — Deploy parachute':'Parachute — steer with movement controls';}
       const near = Math.hypot(x - this.rig.focus.x, z - this.rig.focus.z) < 40;
       const aimA = isSelf && alive ? this.localAim : p.a;
       const backward = tr.v > 0.6 && (tr.vx * Math.cos(aimA) + tr.vz * Math.sin(aimA)) / tr.v < -0.3;
@@ -818,6 +838,9 @@ class App {
     for (const it of latest.items) {
       itemIds.add(it.id);
       if (!this.itemViews.has(it.id)) this.itemViews.set(it.id, new ItemView(it, this.gscene.scene));
+      const v=this.itemViews.get(it.id); v.root.position.y=it.dropY ?? 0;
+      if(it.dropY>0 && !v.canopy){v.canopy=new THREE.Mesh(new THREE.SphereGeometry(1.4,10,5,0,Math.PI*2,0,Math.PI/2),new THREE.MeshStandardMaterial({color:0xc9b586,side:THREE.DoubleSide}));v.canopy.position.y=3;v.root.add(v.canopy);}
+      if(v.canopy)v.canopy.visible=it.dropY>0;
     }
     for (const [id, v] of this.itemViews) {
       if (!itemIds.has(id)) { v.dispose(this.gscene.scene); this.itemViews.delete(id); } else v.update(dt);

@@ -1,3 +1,11 @@
+## Expanded battle royale update
+
+The battlefield is now 600 × 600 metres (nine times the original area). Houses have doorway collision and indoor weapon crates, ammo and healing pickups. Matches begin on an aircraft: press Space or the phone Jump button to exit, then Jump to open the parachute; it also opens automatically below 38 metres. Steer with movement controls. Periodic supply pickups descend under parachutes.
+
+Phone look and fire-drag now support horizontal rotation and vertical pitch. The server validates pitch and performs 3D ray intersections against walls, roofs and player bodies. ADS enters the first-person sight for alignment.
+
+Aircraft, parachutes and new buildings currently use basic procedural models. Existing licensed soldier and environment assets remain; this update does not establish photorealistic quality or a measured client FPS improvement. Browser visual QA and real-device controller QA remain pending.
+
 # PolyZone: Tactics (working title)
 
 A **third/first-person 3D battle royale** that runs in a PC web browser, with an optional **phone-as-controller** mode.

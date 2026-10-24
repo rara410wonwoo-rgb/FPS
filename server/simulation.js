@@ -56,6 +56,9 @@ export class Match {
         i++;
       }
     }
+    if (map.houses?.length && countdown > 0) {
+      for (const p of this.players.values()) { p.x=-275; p.z=0; p.y=100; p.drop=1; if(p.bot)p.dropAt=-240+this.rand()*480; }
+    }
     this.spawnItems();
     this.botDirector = new BotDirector(this);
   }
@@ -83,6 +86,10 @@ export class Match {
 
   spawnItems() {
     const placed = [];
+    for (const h of this.map.houses ?? []) {
+      const x = (h.minX+h.maxX)/2, z = (h.minZ+h.maxZ)/2;
+      this.addItem('crate', x-1, z); this.addItem('ammo',x+1,z); this.addItem('medkit',x,z+1.5);
+    }
     for (const [type, def] of Object.entries(ITEMS)) {
       for (let i = 0; i < def.count; i++) {
         const pos = findFreePoint(this.map, this.rand, 0.6, { avoid: placed, minDist: 7, margin: 5 });
@@ -173,6 +180,7 @@ export class Match {
     p.control.mx = inp.mx;
     p.control.mz = inp.mz;
     p.control.aim = wrapAngle(inp.aim);
+    p.control.pitch = inp.pitch ?? 0;
     p.control.fire = inp.fire;
     p.control.ads = inp.ads;
     p.control.jump = !!inp.jump;
@@ -194,7 +202,12 @@ export class Match {
         this.emit({ type: 'start' });
       }
     } else {
+      const priorSupply = Math.floor(this.elapsed / 75);
       this.elapsed += dt;
+      if (Math.floor(this.elapsed / 75) > priorSupply) {
+        const pos = findFreePoint(this.map, this.rand, 1, {area:{x:this.zoneState.cx ?? 0,z:this.zoneState.cz ?? 0,r:Math.max(5,this.zoneState.r*0.6)}});
+        for(const [type,dx,dz] of [['crate',0,0],['ammo',1,0],['medkit',0,1]]) {const id=this.addItem(type,pos.x+dx,pos.z+dz);this.items.get(id).dropY=70;}
+      }
       this.zoneState = this.zone.state(this.elapsed);
       const key = `${this.zoneState.phase}:${this.zoneState.stage}`;
       if (key !== this.lastZoneKey) {
@@ -203,6 +216,7 @@ export class Match {
       }
       this.botDirector.think(dt);
     }
+    for(const it of this.items.values()) if(it.dropY>0) it.dropY=Math.max(0,it.dropY-dt*5);
     this.deathsThisTick = [];
 
     for (const p of this.players.values()) {
@@ -238,7 +252,7 @@ export class Match {
 
       if (p.pending.swap) { p.pending.swap = false; this.swapWeapon(p); }
       if (p.pending.reload) { p.pending.reload = false; startReload(this, p); }
-      if (isBusy(p)) p.control.fire = false; // no firing while vaulting
+      if (isBusy(p) || p.drop) p.control.fire = false; // no firing while vaulting
       if (p.pending.interact) { p.pending.interact = false; this.tryPickup(p); }
       updateReload(p, dt);
       updateFiring(this, p, dt);
@@ -274,6 +288,7 @@ export class Match {
     let best = null;
     let bestD = PICKUP_RANGE;
     for (const it of this.items.values()) {
+      if (it.dropY > 0 || p.drop) continue;
       const d = Math.hypot(it.x - p.x, it.z - p.z);
       if (d <= bestD) { bestD = d; best = it; }
     }
@@ -393,14 +408,14 @@ export class Match {
       const w = currentWeapon(p);
       players.push({
         id: p.id, n: p.name, b: p.bot, v: p.variant,
-        x: r2(p.x), z: r2(p.z), a: r3(p.aim),
+        x: r2(p.x), z: r2(p.z), a: r3(p.aim), pitch: r3(p.control.pitch ?? 0), drop: p.drop ?? 0,
         hp: Math.ceil(p.hp), al: p.alive, w: w ? w.type : null,
         ads: p.control.ads && p.alive, rl: p.reloadT > 0, mv: p.moving, k: p.kills,
         y: r2(p.y ?? 0), st: stanceOf(p), sp: !!p.sprint,
       });
     }
     const items = [];
-    for (const it of this.items.values()) items.push({ id: it.id, t: it.type, x: r2(it.x), z: r2(it.z) });
+    for (const it of this.items.values()) items.push({ id: it.id, t: it.type, x: r2(it.x), z: r2(it.z), dropY: r2(it.dropY ?? 0) });
     const z = this.zoneState;
     return {
       t: nowMs, tick: this.tick, state: this.state,

@@ -1,6 +1,6 @@
 // Server-authoritative combat: fire rate, ammo, reloading, hitscan, damage
 import { WEAPONS, HIT_RADIUS, MUZZLE_OFFSET, ADS_SPREAD_MULT, MOVEMENT } from '../shared/config.js';
-import { raycastObstacles, rayCircle } from '../shared/collision.js';
+import { rayBox3 } from '../shared/ray3.js';
 
 export function currentWeapon(p) {
   return p.weapons[p.slot] ?? null;
@@ -81,19 +81,29 @@ export function fireShot(match, p, w, def) {
   const tracers = [];
   for (let i = 0; i < def.pellets; i++) {
     const a = p.control.aim + (match.rand() * 2 - 1) * spread;
-    const dx = Math.cos(a);
-    const dz = Math.sin(a);
+    const pitch = p.control.pitch ?? 0;
+    const dx = Math.cos(a) * Math.cos(pitch), dz = Math.sin(a) * Math.cos(pitch), dy = Math.sin(pitch);
+    const oy = (p.y ?? 0) + (p.crouch ? 1.07 : 1.62);
+    const origin = {x:ox,y:oy,z:oz}, dir = {x:dx,y:dy,z:dz};
     // The ray starts at the character center. Even if the muzzle is inside a wall, the wall hit comes first, so shooting through walls is impossible.
-    const wall = raycastObstacles(match.map.index, ox, oz, dx, dz, def.range);
-    let bestT = wall ? wall.t : def.range;
-    let target = null;
+    let bestT = def.range, wall = null, target = null;
+    if (dy < -1e-9) bestT = Math.min(bestT, -oy / dy);
+    for (const o of match.map.obstacles) {
+      const t = rayBox3(origin, dir, {x:[o.minX,o.maxX],y:[0,o.h ?? 3],z:[o.minZ,o.maxZ]}, bestT);
+      if (t !== null && t <= bestT) { bestT=t; wall=o; }
+    }
+    for (const h of match.map.houses ?? []) {
+      const t=rayBox3(origin,dir,{x:[h.minX,h.maxX],y:[h.h,h.h+0.2],z:[h.minZ,h.maxZ]},bestT);
+      if(t!==null && t<bestT){bestT=t;wall=h;}
+    }
     for (const o of match.players.values()) {
       if (o === p || !o.alive) continue;
-      const t = rayCircle(ox, oz, dx, dz, o.x, o.z, HIT_RADIUS, bestT);
-      if (t !== null && t < bestT) { bestT = t; target = o; }
+      const t = rayBox3(origin,dir,{x:[o.x-HIT_RADIUS,o.x+HIT_RADIUS],y:[o.y ?? 0,(o.y ?? 0)+(o.crouch?1.25:1.85)],z:[o.z-HIT_RADIUS,o.z+HIT_RADIUS]},bestT);
+      if (t !== null && t < bestT) {bestT=t;target=o;}
     }
     const startT = Math.min(MUZZLE_OFFSET, bestT);
     tracers.push({
+      y0: round(oy + dy * startT), y1: round(oy + dy * bestT),
       x0: round(ox + dx * startT), z0: round(oz + dz * startT),
       x1: round(ox + dx * bestT), z1: round(oz + dz * bestT),
       h: target ? 1 : wall ? 2 : 0,

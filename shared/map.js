@@ -4,7 +4,7 @@ import { mulberry32, SpatialIndex, pointBlocked } from './collision.js';
 
 const ROAD_MAIN_W = 8;
 const ROAD_LOOP_W = 6;
-const LOOP = 55;
+const LOOP = 165;
 const PLAZA = 18;
 
 export function buildRoads() {
@@ -46,6 +46,7 @@ export function generateMap(seed = MAP_SEED) {
   const roads = buildRoads();
   const obstacles = [];
   const trees = [];
+  const houses = [];
   const H = WORLD_HALF;
 
   const fits = (b, gap, avoidRoads = true) => {
@@ -70,23 +71,30 @@ export function generateMap(seed = MAP_SEED) {
 
   // buildings
   let placed = 0;
-  for (let i = 0; i < 900 && placed < 34; i++) {
-    const x = R(-92, 92);
-    const z = R(-92, 92);
+  for (let i = 0; i < 900 && placed < 65; i++) {
+    const x = R(-280, 280);
+    const z = R(-280, 280);
     if (outskirts(x, z) && rand() > 0.35) continue;
     const w = R(6, 13);
     const d = R(6, 13);
     const b = box(x, z, w, d);
     if (inPlaza(b) || !fits(b, 4)) continue;
-    add(b, 'building', R(3.5, 7.5), { tone: Math.floor(rand() * 3) });
+    const h = 3.4;
+    houses.push({...b, h});
+    const t = 0.35, door = 2.2;
+    add({minX:b.minX,maxX:b.maxX,minZ:b.minZ,maxZ:b.minZ+t}, 'wall', h);
+    add({minX:b.minX,maxX:b.minX+t,minZ:b.minZ,maxZ:b.maxZ}, 'wall', h);
+    add({minX:b.maxX-t,maxX:b.maxX,minZ:b.minZ,maxZ:b.maxZ}, 'wall', h);
+    add({minX:b.minX,maxX:x-door/2,minZ:b.maxZ-t,maxZ:b.maxZ}, 'wall', h);
+    add({minX:x+door/2,maxX:b.maxX,minZ:b.maxZ-t,maxZ:b.maxZ}, 'wall', h);
     placed++;
   }
 
   // low cover walls
   placed = 0;
   for (let i = 0; i < 600 && placed < 22; i++) {
-    const x = R(-90, 90);
-    const z = R(-90, 90);
+    const x = R(-275, 275);
+    const z = R(-275, 275);
     const len = R(4, 8);
     const b = rand() < 0.5 ? box(x, z, len, 0.7) : box(x, z, 0.7, len);
     if (inPlaza(b) || !fits(b, 2.2)) continue;
@@ -97,8 +105,8 @@ export function generateMap(seed = MAP_SEED) {
   // crates
   placed = 0;
   for (let i = 0; i < 800 && placed < 55; i++) {
-    const x = R(-94, 94);
-    const z = R(-94, 94);
+    const x = R(-285, 285);
+    const z = R(-285, 285);
     const s = R(1.4, 2.0);
     const b = box(x, z, s, s);
     if (!fits(b, 1.8, rand() < 0.8)) continue;
@@ -109,8 +117,8 @@ export function generateMap(seed = MAP_SEED) {
   // rocks
   placed = 0;
   for (let i = 0; i < 900 && placed < 40; i++) {
-    const x = R(-94, 94);
-    const z = R(-94, 94);
+    const x = R(-285, 285);
+    const z = R(-285, 285);
     if (!outskirts(x, z) && rand() > 0.4) continue;
     const w = R(1.6, 4);
     const d = R(1.6, 4);
@@ -157,7 +165,7 @@ export function generateMap(seed = MAP_SEED) {
   }
 
   obstacles.forEach((o, i) => { o.id = i; });
-  return { seed, obstacles, trees, roads, index: new SpatialIndex(obstacles) };
+  return { seed, obstacles, trees, roads, houses, index: new SpatialIndex(obstacles) };
 }
 
 // Find a position that does not overlap obstacles or the boundary.

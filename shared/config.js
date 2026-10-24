@@ -10,7 +10,7 @@ export const INPUT_SEND_RATE = 30;
 export const INPUT_HEARTBEAT_MS = 150;
 export const INTERP_DELAY_MS = 100;
 
-export const WORLD_HALF = 100; // playable range -100 to 100
+export const WORLD_HALF = 300; // playable range -100 to 100
 export const MAP_SEED = 20261023;
 
 export const PLAYER_RADIUS = 0.55;
@@ -91,22 +91,22 @@ WEAPONS.ranger = {
 export const WEAPON_IDS = Object.keys(WEAPONS);
 
 export const ITEMS = {
-  medkit: { label: 'Medkit', heal: 45, count: 16 },
-  ammo: { label: 'Ammo box', count: 18 },
-  crate: { label: 'Weapon crate', count: 10 },
+  medkit: { label: 'Medkit', heal: 45, count: 48 },
+  ammo: { label: 'Ammo box', count: 70 },
+  crate: { label: 'Weapon crate', count: 55 },
 };
 
 // Zone: initial radius 135, first 30s wait, 5 phases (20s wait + 25s shrink), final radius 12.
 // If the match is still going after phase 5, sudden death shrinks it to 0 (prevents endless standoffs).
 export const ZONE = {
-  initialRadius: 135,
+  initialRadius: 420,
   firstWait: 30,
   initialDps: 1,
   phases: [
-    { wait: 20, shrink: 25, radius: 92, dps: 2 },
-    { wait: 20, shrink: 25, radius: 62, dps: 4 },
-    { wait: 20, shrink: 25, radius: 40, dps: 6 },
-    { wait: 20, shrink: 25, radius: 24, dps: 9 },
+    { wait: 20, shrink: 25, radius: 280, dps: 2 },
+    { wait: 20, shrink: 25, radius: 185, dps: 4 },
+    { wait: 20, shrink: 25, radius: 110, dps: 6 },
+    { wait: 20, shrink: 25, radius: 50, dps: 9 },
     { wait: 20, shrink: 25, radius: 12, dps: 13 },
   ],
   suddenDeath: { wait: 20, shrink: 40, radius: 0, dps: 20 },

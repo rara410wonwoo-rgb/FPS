@@ -3,6 +3,12 @@
 A **third/first-person 3D battle royale** that runs in a PC web browser, with an optional **phone-as-controller** mode.
 The full game loop works: move → loot → fight → escape the zone → win/lose → restart.
 
+## Play online
+
+Open **https://polyzone-tactics.onrender.com/** on a PC. Choose **Create room** and share the five-character room code; another player opens the same URL and chooses **Join**. The host starts the match. For a phone controller, use the in-game QR code or open **https://polyzone-tactics.onrender.com/controller.html** on the phone and pair it with the PC player. Both devices need internet access, but do not need the same Wi-Fi.
+
+This is a free Render Web Service running the Node and Socket.IO server. It may take about a minute to wake after 15 minutes without traffic; active WebSocket messages keep it awake. Matches and pair codes are held in memory and reset if the service restarts.
+
 - 12-player free-for-all (up to 4 humans + bots), server-authoritative simulation at 30Hz, snapshots at 15Hz
 - Over-the-shoulder third person (default), first person, and the classic top-down view
 - Sprint, jump, crouch, slide, and vault over low cover — all judged by the server

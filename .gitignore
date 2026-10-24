@@ -5,3 +5,6 @@ dist/
 test-artifacts/
 *.tgz
 .claude/
+
+/node_modules
+/validation.txt

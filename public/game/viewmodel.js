@@ -200,6 +200,12 @@ export class ViewModel {
     this.type = type;
     this.holder.clear();
     this.weapon = buildWeapon(type);
+    if (type === 'sentinel' || type === 'ranger') {
+      const m = mats();
+      this.weapon.add(cyl(0.035, 0.24, m.darkMetal, 0, 0.15, -0.12));
+      this.weapon.add(cyl(0.026, 0.012, m.lens, 0, 0.15, 0.006));
+      if (type === 'sentinel') this.weapon.add(cyl(0.012, 0.4, m.metal, 0, 0.018, -0.8));
+    }
     this.holder.add(this.weapon);
     this.weapon.add(this.flash);
     this.flash.position.copy(this.weapon.userData.muzzle);
@@ -219,8 +225,8 @@ export class ViewModel {
 
   fire() {
     const kind = this.type;
-    this.recoil = Math.min(1.4, this.recoil + (kind === 'breaker' ? 1.3 : kind === 'hornet' ? 0.38 : 0.5));
-    this.recoilYaw = (Math.random() - 0.5) * (kind === 'breaker' ? 0.04 : 0.02);
+    this.recoil = 0;
+    this.recoilYaw = 0;
     this.flash.visible = true;
     this.flashLife = 0.045;
     this.flash.material.rotation = Math.random() * Math.PI;

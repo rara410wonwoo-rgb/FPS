@@ -236,7 +236,7 @@ class App {
         }
         for (const tr of e.tr) this.traceShot(tr, muzzle, ownLook);
         if (pl) this.audio.shot(e.w, Math.hypot(pl.x - focus.x, pl.z - focus.z), pl.x - focus.x);
-        if (e.p === me) this.rig.shake(e.w === 'breaker' ? 0.35 : 0.06);
+        if (e.p === me) this.rig.shake(0);
         else if (pl) this.hud.ping(pl.x, pl.z);
         break;
       }
@@ -517,6 +517,7 @@ class App {
 
   showScreen(name) {
     this.screen = name;
+    if (this.scopeOverlay) this.scopeOverlay.hidden = true;
     this.debug.screen = name;
     $('menu-main').hidden = name !== 'main';
     $('menu-lobby').hidden = name !== 'lobby';
@@ -833,19 +834,25 @@ class App {
       if (target) { focus = { x: target.x, z: target.z }; spectating = target.n; }
     }
     const adsHeld = alive && (usingKeyboard ? this.input.ads : !!selfSnap?.ads);
+    if (!this.scopeOverlay) {
+      this.scopeOverlay = document.createElement('div');
+      this.scopeOverlay.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:25;background:linear-gradient(90deg,transparent 49.9%,#111 49.9%,#111 50.1%,transparent 50.1%),linear-gradient(transparent 49.9%,#111 49.9%,#111 50.1%,transparent 50.1%),radial-gradient(circle at center,transparent 0 32vh,#090b0d 32.3vh);';
+      document.body.append(this.scopeOverlay);
+    }
+    this.scopeOverlay.hidden = !(look && adsHeld && WEAPONS[net.weaponType()]?.adsFov);
     const selfSpeed = this.speedTrack.get(youId)?.v ?? 0;
     const wtype = net.weaponType() ?? 'kestrel';
     const [ldx, ldy] = this.input.takeLook();
     const crouched = selfStance === 1 || selfStance === 2;
     if (fps && alive && selfPos) {
-      const adsFov = wtype === 'breaker' ? 62 : wtype === 'hornet' ? 58 : 52;
+      const adsFov = WEAPONS[wtype]?.adsFov ?? (wtype === 'breaker' ? 62 : wtype === 'hornet' ? 58 : 52);
       this.rig.updateFps(dt, selfPos.x, selfPos.z, this.input.yaw, this.input.pitch, { ads: adsHeld, speed: selfSpeed, adsFov });
       // move eye height with crouch/jump
       this.eyeOff = (this.eyeOff ?? 0) + ((crouched ? -0.55 : 0) + selfY - (this.eyeOff ?? 0)) * Math.min(1, dt * 14);
       this.rig.camera.position.y += this.eyeOff;
       this.gscene.setFirstPerson(true);
     } else if (tps && alive && selfPos) {
-      const adsFov = wtype === 'breaker' ? 58 : wtype === 'hornet' ? 54 : 48;
+      const adsFov = WEAPONS[wtype]?.adsFov ?? (wtype === 'breaker' ? 58 : wtype === 'hornet' ? 54 : 48);
       this.rig.updateTps(dt, selfPos.x, selfY, selfPos.z, this.input.yaw, this.input.pitch, {
         ads: adsHeld, crouch: crouched, speed: selfSpeed, adsFov, collide: (from, dir, far) => this.rayDistance(from, dir, far),
       });

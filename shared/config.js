@@ -18,7 +18,7 @@ export const HIT_RADIUS = 0.72;
 export const MAX_HP = 100;
 export const MOVE_SPEED = 7;
 export const ADS_SPEED_MULT = 0.6;
-export const ADS_SPREAD_MULT = 0.45;
+export const ADS_SPREAD_MULT = 0;
 export const MUZZLE_OFFSET = 0.95;
 export const PICKUP_RANGE = 2.4;
 
@@ -75,6 +75,18 @@ export const WEAPONS = {
     spread: 0.15, spreadMove: 0.03, bloomPerShot: 0, bloomMax: 0, bloomRecover: 1,
     falloffStart: 0.4, falloffMin: 0.35, moveSpeedMult: 0.96,
   },
+};
+WEAPONS.sentinel = {
+  id: 'sentinel', name: 'Sentinel Sniper', short: 'SNT', kind: 'sniper',
+  damage: 85, pellets: 1, range: 170, magSize: 5, reserveStart: 20, reserveMax: 50,
+  fireInterval: 1.3, reloadTime: 2.8, spread: 0.008, spreadMove: 0.015,
+  bloomPerShot: 0, bloomMax: 0, bloomRecover: 1,
+  falloffStart: 0.85, falloffMin: 0.9, moveSpeedMult: 0.9, adsFov: 18,
+};
+WEAPONS.ranger = {
+  ...WEAPONS.kestrel, id: 'ranger', name: 'Ranger DMR', short: 'DMR', kind: 'dmr',
+  damage: 42, range: 110, magSize: 12, reserveStart: 48, reserveMax: 96,
+  fireInterval: 0.36, reloadTime: 2, spread: 0.012, bloomPerShot: 0, bloomMax: 0, adsFov: 30,
 };
 export const WEAPON_IDS = Object.keys(WEAPONS);
 
@@ -144,6 +156,6 @@ export const BLUETOOTH = {
 export const QUALITY_PRESETS = {
   // post: post-processing (bloom, grading, MSAA), ao: GTAO ambient occlusion, grass: grass density ratio
   low: { pixelRatio: 0.75, shadows: false, shadowMapSize: 0, post: false, ao: false, msaa: 0, grass: 0.25 },
-  medium: { pixelRatio: 1.0, shadows: true, shadowMapSize: 2048, post: true, ao: false, msaa: 4, grass: 0.6 },
+  medium: { pixelRatio: 1.0, shadows: true, shadowMapSize: 1024, post: false, ao: false, msaa: 0, grass: 0.6 },
   high: { pixelRatio: 1.5, shadows: true, shadowMapSize: 4096, post: true, ao: true, msaa: 4, grass: 1 },
 };

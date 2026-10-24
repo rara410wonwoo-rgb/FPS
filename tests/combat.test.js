@@ -28,6 +28,14 @@ describe('geometry', () => {
 });
 
 describe('combat', () => {
+  it('ADS ignores accumulated spread for long range precision', () => {
+    const m = emptyMatch();
+    const a = place(m, 'A', 0, 0, 0); const b = place(m, 'B', 35, 0);
+    holdFire(m, 'A', 0); a.control.ads = true; a.bloom = 1;
+    stepN(m, 10, { t: 0 });
+    assert.ok(b.hp < MAX_HP);
+  });
+
   it('enemies behind walls cannot be hit', () => {
     const m = emptyMatch([{ minX: 4, maxX: 5, minZ: -2, maxZ: 2, h: 3 }]);
     place(m, 'A', 0, 0, 0); const b = place(m, 'B', 9, 0);
@@ -114,7 +122,7 @@ describe('combat', () => {
     const a = place(m, 'A', 0, 0, 0); const b = place(m, 'B', 3, 0);
     a.weapons[0] = { type: 'breaker', mag: 6, reserve: 18 };
     holdFire(m, 'A', 0);
-    stepN(m, 1, { t: 0 });
+    stepN(m, 10, { t: 0 });
     const shot = m.drainEvents().find((e) => e.type === 'shot');
     assert.equal(shot.tr.length, 8);
     assert.ok(MAX_HP - b.hp >= 40, `damage ${MAX_HP - b.hp}`);

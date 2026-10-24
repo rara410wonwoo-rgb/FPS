@@ -37,7 +37,7 @@ export class CameraRig {
   shake(amount) { this.trauma = Math.min(1, this.trauma + amount); }
 
   // Recoil: the view kicks up slightly and settles
-  kick(amount) { this.recoilPitch = Math.min(0.08, this.recoilPitch + amount); }
+  kick(amount) { this.recoilPitch = 0; }
 
   snap(x, z) {
     this.focus.set(x, 0, z);

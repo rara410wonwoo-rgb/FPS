@@ -195,10 +195,10 @@ export class GameScene {
     this.container = container;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', stencil: false });
     // Neutral tone mapping keeps the sky blue and saturated (ACES washes a bright sky to grey/purple)
-    this.renderer.toneMapping = THREE.NeutralToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.94;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
     if (ASSETS.sunDir) SUN_DIR.copy(ASSETS.sunDir);
@@ -267,7 +267,7 @@ export class GameScene {
     }
     pmrem.dispose();
     this.scene.environment = this.envMap;
-    this.scene.environmentIntensity = 0.85;
+    this.scene.environmentIntensity = 0.65;
     this.viewScene.environment = this.envMap;
     this.viewScene.environmentIntensity = 0.9;
   }
@@ -275,7 +275,7 @@ export class GameScene {
   buildLights() {
     this.hemi = new THREE.HemisphereLight(0xcfd8e0, 0x6a5a3a, 0.55);
     this.scene.add(this.hemi);
-    this.sun = new THREE.DirectionalLight(0xffe2b8, 3.4);
+    this.sun = new THREE.DirectionalLight(0xffeed5, 2.7);
     this.sun.position.copy(SUN_DIR).multiplyScalar(90);
     const sc = this.sun.shadow.camera;
     sc.left = -60; sc.right = 60; sc.top = 60; sc.bottom = -60;
@@ -540,15 +540,41 @@ export class GameScene {
   // ---------------- structures ----------------
   buildObstacles() {
     const obs = this.map.obstacles;
-    for (const h of this.map.houses ?? []) {
-      const floor = new THREE.Mesh(new THREE.BoxGeometry(h.maxX-h.minX,0.08,h.maxZ-h.minZ),new THREE.MeshStandardMaterial({color:0x77736c,roughness:0.95}));
-      floor.position.set((h.minX+h.maxX)/2,0.01,(h.minZ+h.maxZ)/2); floor.receiveShadow=true; this.scene.add(floor);
-      const roof=new THREE.Mesh(new THREE.BoxGeometry(h.maxX-h.minX+0.4,0.2,h.maxZ-h.minZ+0.4),new THREE.MeshStandardMaterial({color:0x505b60,roughness:0.8}));
-      roof.position.set((h.minX+h.maxX)/2,h.h+0.1,(h.minZ+h.maxZ)/2);roof.castShadow=true;this.scene.add(roof);
-      this.solidMeshes.push(roof);
-    }
+    const homes=this.map.houses ?? [];
+    const floor=instanced(new THREE.BoxGeometry(1,1,1),worldMat('wood_planks_grey',0.65,{color:0xc2b7a3,roughness:0.88}),homes,(h,i,p,q,s)=>{
+      p.set((h.minX+h.maxX)/2,0.01,(h.minZ+h.maxZ)/2);q.identity();s.set(h.maxX-h.minX,0.08,h.maxZ-h.minZ);
+    },{shadow:false});this.scene.add(floor);
+    const roof=instanced(new THREE.BoxGeometry(1,1,1),worldMat('corrugated_iron_02',0.7,{color:0x959d9b,metalness:0.6,roughness:0.6}),homes,(h,i,p,q,s)=>{
+      p.set((h.minX+h.maxX)/2,h.h+0.1,(h.minZ+h.maxZ)/2);q.identity();s.set(h.maxX-h.minX+0.4,0.2,h.maxZ-h.minZ+0.4);
+    });this.scene.add(roof);this.solidMeshes.push(roof);
     const unit = new THREE.BoxGeometry(1, 1, 1);
     unit.translate(0, 0.5, 0);
+    const details = { frames: [], glass: [], foundation: [] };
+    const detailBox = (bucket,w,h,d,x,y,z) => {
+      const g = new THREE.BoxGeometry(w,h,d);g.translate(x,y,z);details[bucket].push(g);
+    };
+    for (const h of this.map.houses ?? []) {
+      const cx=(h.minX+h.maxX)/2, cz=(h.minZ+h.maxZ)/2;
+      const w=h.maxX-h.minX,d=h.maxZ-h.minZ;
+      // Recessed-looking opaque glazing, frame rails and sills on solid rear walls.
+      for(const x of [cx-w*0.25,cx+w*0.25]) {
+        const z=h.minZ-0.045;
+        detailBox('glass',1.35,1.15,0.035,x,1.9,z);
+        for(const dx of [-0.74,0,0.74]) detailBox('frames',0.07,1.3,0.1,x+dx,1.9,z-0.025);
+        for(const y of [1.25,2.55]) detailBox('frames',1.55,0.09,0.16,x,y,z-0.04);
+        detailBox('foundation',1.65,0.12,0.3,x,1.22,z-0.09);
+      }
+      // Door jambs retain the original 2.2m walkable opening.
+      for(const dx of [-1.17,1.17]) detailBox('frames',0.1,3.35,0.16,cx+dx,1.67,h.maxZ+0.04);
+      detailBox('frames',2.5,0.12,0.2,cx,3.33,h.maxZ+0.05);
+      detailBox('foundation',w+0.1,0.25,0.12,cx,0.12,h.minZ-0.03);
+      for(const x of [h.minX-0.03,h.maxX+0.03]) detailBox('foundation',0.12,0.25,d,x,0.12,cz);
+      for(const z of [h.minZ-0.12,h.maxZ+0.12]) detailBox('frames',w+0.5,0.16,0.16,cx,h.h,z);
+    }
+    const detailMats={frames:worldMat('wood_planks_grey',1,{color:0x777c73}),glass:new THREE.MeshStandardMaterial({color:0x263d49,roughness:0.18,metalness:0.65}),foundation:worldMat('concrete_wall_008',0.5,{color:0x8b8780})};
+    for(const [key,parts] of Object.entries(details)) if(parts.length){
+      const mesh=new THREE.Mesh(mergeGeometries(parts),detailMats[key]);mesh.castShadow=key!=='glass';mesh.receiveShadow=true;this.scene.add(mesh);parts.forEach(g=>g.dispose());
+    }
     const rand = mulberry32(321);
     const glassMatBase = { color: 0x1b2a33, metalness: 0.6, roughness: 0.06, envMapIntensity: 1.6 };
     const roofUnits = [];
@@ -686,7 +712,15 @@ export class GameScene {
     // tall walls (central L walls): concrete
     const walls = obs.filter((o) => o.kind === 'wall');
     const tall = walls.filter((o) => o.h >= 2);
-    const wallMesh = instanced(unit, worldMat('concrete_wall_008', 1 / 2.5, { color: 0xd4cfc4 }), tall, (o, i, p, q, s) => {
+    const houseFor = o => (this.map.houses ?? []).findIndex(h=>o.minX>=h.minX-0.01&&o.maxX<=h.maxX+0.01&&o.minZ>=h.minZ-0.01&&o.maxZ<=h.maxZ+0.01);
+    for(let tone=0;tone<3;tone++){
+      const subset=tall.filter(o=>houseFor(o)>=0&&houseFor(o)%3===tone);
+      const material=worldMat(tone===1?'red_brick_03':'plastered_wall_04',tone===1?0.5:0.33,{color:[0xddd7c7,0xe2d6c7,0xb8c2c0][tone],roughness:0.88});
+      const mesh=instanced(unit,material,subset,(o,i,p,q,s)=>{p.set((o.minX+o.maxX)/2,0,(o.minZ+o.maxZ)/2);q.identity();s.set(o.maxX-o.minX,o.h,o.maxZ-o.minZ);});
+      this.scene.add(mesh);this.solidMeshes.push(mesh);
+    }
+    const exposed=tall.filter(o=>houseFor(o)<0);
+    const wallMesh = instanced(unit, worldMat('concrete_wall_008', 1 / 2.5, { color: 0xd4cfc4 }), exposed, (o, i, p, q, s) => {
       p.set((o.minX + o.maxX) / 2, 0, (o.minZ + o.maxZ) / 2); q.identity(); s.set(o.maxX - o.minX, o.h, o.maxZ - o.minZ);
     });
     this.scene.add(wallMesh);

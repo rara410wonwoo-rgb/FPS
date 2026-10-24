@@ -10,7 +10,7 @@ export const INPUT_SEND_RATE = 30;
 export const INPUT_HEARTBEAT_MS = 150;
 export const INTERP_DELAY_MS = 100;
 
-export const WORLD_HALF = 300; // playable range -100 to 100
+export const WORLD_HALF = 300; // playable range -300 to 300
 export const MAP_SEED = 20261023;
 
 export const PLAYER_RADIUS = 0.55;

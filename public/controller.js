@@ -270,6 +270,120 @@ document.addEventListener('contextmenu', (e) => e.preventDefault());
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('touchmove', (e) => { if (e.target.tagName !== 'INPUT') e.preventDefault(); }, { passive: false });
 
+// ───────── Custom layout: drag buttons to move them, resize the selected one, set opacity. Saved on this phone ─────────
+// Positions are fractions of the screen (button center), so the layout survives rotation and reconnects.
+const LAYOUT_KEY = 'polyzone.layout.v1';
+const LAYOUT_IDS = BUTTONS.map(([id]) => id);
+const pad = $('pad');
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+let layout = loadLayout();
+let editing = null; // working copy while the editor is open
+let selected = null;
+let drag = null;
+
+function loadLayout() {
+  const out = { buttons: {}, opacity: 1 };
+  try {
+    const v = JSON.parse(localStorage.getItem(LAYOUT_KEY));
+    if (!v || typeof v !== 'object') return out;
+    if (Number.isFinite(v.opacity)) out.opacity = clamp(v.opacity, 0.3, 1);
+    for (const id of LAYOUT_IDS) {
+      const p = v.buttons?.[id];
+      if (!p || typeof p !== 'object') continue;
+      const b = {};
+      if (Number.isFinite(p.x) && Number.isFinite(p.y)) { b.x = clamp(p.x, 0, 1); b.y = clamp(p.y, 0, 1); }
+      if (Number.isFinite(p.s)) b.s = clamp(p.s, 0.6, 1.6);
+      out.buttons[id] = b;
+    }
+  } catch { /* no storage or bad data: defaults */ }
+  return out;
+}
+function applyLayout(l) {
+  pad.style.setProperty('--btn-alpha', String(l.opacity));
+  for (const id of LAYOUT_IDS) {
+    const el = $(id);
+    const p = l.buttons[id] ?? {};
+    const moved = p.x !== undefined;
+    el.classList.toggle('custom', moved);
+    el.style.left = moved ? `${p.x * 100}%` : '';
+    el.style.top = moved ? `${p.y * 100}%` : '';
+    el.style.scale = p.s && p.s !== 1 ? String(p.s) : '';
+  }
+}
+applyLayout(layout);
+
+function select(id) {
+  selected = id;
+  for (const lid of LAYOUT_IDS) $(lid).classList.toggle('selected', lid === id);
+  const size = $('edit-size');
+  size.disabled = !id;
+  size.value = String(Math.round((editing.buttons[id]?.s ?? 1) * 100));
+  $('edit-sel').textContent = id ? ($(id).title || 'Swap weapon') : 'Drag a button';
+}
+function openEditor() {
+  neutral();
+  editing = structuredClone(layout);
+  document.body.classList.add('editing');
+  $('editbar').hidden = false;
+  $('start').hidden = true;
+  $('edit-alpha').value = String(Math.round(editing.opacity * 100));
+  select(null);
+}
+function closeEditor(save) {
+  if (save) {
+    layout = editing;
+    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch { /* private mode: kept for this visit only */ }
+  }
+  editing = null; drag = null;
+  select(null);
+  applyLayout(layout);
+  document.body.classList.remove('editing');
+  $('editbar').hidden = true;
+  if (!paired) showStart();
+}
+$('layout-open').addEventListener('click', openEditor);
+$('layout-start').addEventListener('click', openEditor);
+$('edit-save').addEventListener('click', () => closeEditor(true));
+$('edit-cancel').addEventListener('click', () => closeEditor(false));
+$('edit-reset').addEventListener('click', () => {
+  editing = { buttons: {}, opacity: 1 };
+  $('edit-alpha').value = '100';
+  applyLayout(editing);
+  select(selected);
+});
+$('edit-size').addEventListener('input', (e) => {
+  if (!selected) return;
+  (editing.buttons[selected] ??= {}).s = Number(e.target.value) / 100;
+  applyLayout(editing);
+});
+$('edit-alpha').addEventListener('input', (e) => { editing.opacity = Number(e.target.value) / 100; applyLayout(editing); });
+
+// While editing, capture-phase listeners on the pad swallow touches so nothing reaches the game controls
+pad.addEventListener('pointerdown', (e) => {
+  if (!editing) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const el = e.target.closest('.btn');
+  select(el?.id ?? null);
+  if (!el || drag) return;
+  const r = el.getBoundingClientRect();
+  drag = { id: el.id, pid: e.pointerId, dx: e.clientX - (r.left + r.width / 2), dy: e.clientY - (r.top + r.height / 2) };
+  capture(el, e);
+}, true);
+pad.addEventListener('pointermove', (e) => {
+  if (!editing) return;
+  e.stopPropagation();
+  if (!drag || e.pointerId !== drag.pid) return;
+  const pr = pad.getBoundingClientRect();
+  const b = (editing.buttons[drag.id] ??= {});
+  b.x = clamp((e.clientX - drag.dx - pr.left) / pr.width, 0.02, 0.98);
+  b.y = clamp((e.clientY - drag.dy - pr.top) / pr.height, 0.04, 0.96);
+  applyLayout(editing);
+}, true);
+const endDrag = (e) => { if (!editing) return; e.stopPropagation(); if (drag && e.pointerId === drag.pid) drag = null; };
+pad.addEventListener('pointerup', endDrag, true);
+pad.addEventListener('pointercancel', endDrag, true);
+
 // ───────── Sending (30Hz loop separate from rendering, change detection + heartbeat) ─────────
 function send(force = false) {
   if (!paired || !socket.connected) return;

@@ -4,6 +4,7 @@
 //  - 'top': the classic angled top-down view (switch with V)
 //  - spectating: chase camera behind the target
 import * as THREE from 'three';
+import { eyeHeight } from '../../shared/aim.js';
 
 export const EYE_HEIGHT = 1.62;
 const FPS_FOV = 74;
@@ -58,7 +59,7 @@ export class CameraRig {
   }
 
   // First person: eye height, head bob, recoil, narrower FOV when aiming
-  updateFps(dt, x, z, yaw, pitch, { ads = false, speed = 0, adsFov = 55 } = {}) {
+  updateFps(dt, x, z, yaw, pitch, { ads = false, speed = 0, adsFov = 55, y = 0, crouch = false } = {}) {
     this.focus.set(x, 0, z);
     this.trauma = Math.max(0, this.trauma - dt * 2.2);
     const moving = Math.min(1, speed / 7);
@@ -69,13 +70,13 @@ export class CameraRig {
     const bx = Math.cos(this.bob) * 0.03 * this.bobAmt;
     const [sx, sy, sz] = this.shakeOffset(0.06);
     const right = new THREE.Vector3(-Math.sin(yaw), 0, Math.cos(yaw));
-    this.camera.position.set(x, EYE_HEIGHT + by + sy, z).addScaledVector(right, bx + sx);
-    this.camera.position.z += sz * 0.3;
+    this.camera.position.set(x, eyeHeight(y, crouch) + (ads ? 0 : by + sy), z).addScaledVector(right, ads ? 0 : bx + sx);
+    this.camera.position.z += ads ? 0 : sz * 0.3;
     const p = THREE.MathUtils.clamp(pitch + this.recoilPitch, -1.45, 1.45);
     const dir = new THREE.Vector3(Math.cos(yaw) * Math.cos(p), Math.sin(p), Math.sin(yaw) * Math.cos(p));
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(this.camera.position.clone().add(dir));
-    this.camera.rotateZ(Math.sin(this.bob * 0.5) * 0.004 * this.bobAmt + sx * 0.3);
+    if (!ads) this.camera.rotateZ(Math.sin(this.bob * 0.5) * 0.004 * this.bobAmt + sx * 0.3);
     this.setFov(ads ? adsFov : FPS_FOV, dt);
   }
 

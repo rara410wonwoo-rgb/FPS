@@ -1,5 +1,8 @@
 // Game client entry: menu/lobby/match screens, input sending, render loop, event effects
 import * as THREE from 'three';
+import { rayBox3 } from '../../shared/ray3.js';
+import { eyeHeight, anglesToPoint } from '../../shared/aim.js';
+import { HIT_RADIUS } from '../../shared/config.js';
 import { MAP_SEED, TICK_DT, INPUT_HEARTBEAT_MS, WEAPONS, ITEMS, PICKUP_RANGE, MAX_HUMANS } from '../../shared/config.js';
 import { C2S, S2C } from '../../shared/protocol.js';
 import { generateMap } from '../../shared/map.js';
@@ -45,8 +48,11 @@ export async function boot(opts) {
   } catch (err) {
     console.warn('asset loading failed, using fallbacks', err);
   }
-  document.getElementById('loading')?.remove();
+  if (label) label.textContent = 'Preparing shaders…';
   const app = new App(opts);
+  // Prepare the ADS weapon shader before the first right-click.
+  await app.gscene.renderer.compileAsync(app.gscene.viewScene, app.gscene.viewCamera);
+  document.getElementById('loading')?.remove();
   window.__polyzone = app.debug;
   window.__pzApp = app; // for debugging
   app.start();
@@ -100,6 +106,7 @@ class App {
     this.ble = null;
     this.debug = { frames: 0, fps: 0, screen: 'main', state: null, events: 0, shots: 0, mode, errors: [] };
 
+    this.aimBoxes = [...this.map.obstacles.map(o => ({ x:[o.minX,o.maxX], y:[0,o.h ?? 3], z:[o.minZ,o.maxZ] })), ...(this.map.houses ?? []).map(h => ({ x:[h.minX,h.maxX], y:[h.h,h.h+0.2], z:[h.minZ,h.maxZ] }))];
     this.aimLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xff4040, transparent: true, opacity: 0.55 }));
     this.aimLine.visible = false;
     this.gscene.scene.add(this.aimLine);
@@ -225,8 +232,13 @@ class App {
         const ownLook = e.p === me && this.isLookActive();
         if (ownLook && !ownFps) this.rig.kick(e.w === 'breaker' ? 0.04 : 0.008);
         if (ownFps) {
-          this.viewmodel.fire();
-          this.viewmodel.muzzleWorld(this.rig.camera, muzzle);
+          if (this.viewmodel.visible) {
+            this.viewmodel.fire();
+            this.viewmodel.muzzleWorld(this.rig.camera, muzzle);
+          } else {
+            const tr = e.tr[0];
+            muzzle.set(tr.x0, tr.y0 ?? this.rig.camera.position.y, tr.z0);
+          }
           this.rig.kick(e.w === 'breaker' ? 0.05 : e.w === 'hornet' ? 0.008 : 0.012);
           this.effects.light.position.copy(muzzle);
           this.effects.light.intensity = 25;
@@ -282,15 +294,17 @@ class App {
   }
 
   isFirstPersonActive() {
-    return this.settings.view === 'fps' && !!this.net.self()?.al;
+    return !!this.net.self()?.al && (this.settings.view === 'fps' || (this.settings.view === 'tps' && (this.net.ctrl ? !!this.net.self()?.ads : this.input.ads)));
   }
 
   // Distance from `from` along `dir` to the nearest structure (null if none) — for camera collision and aim point
   rayDistance(from, dir, far) {
-    this.raycaster.set(from, dir);
-    this.raycaster.far = far;
-    const hit = this.raycaster.intersectObjects(this.gscene.cameraBlockers ?? this.gscene.solidMeshes, true)[0];
-    let d = hit ? hit.distance : null;
+    // Query gameplay boxes instead of every triangle of detailed scene meshes.
+    let d = null;
+    for (const box of this.aimBoxes) {
+      const t = rayBox3(from, dir, box, d ?? far);
+      if (t !== null) d = t;
+    }
     // ground
     if (dir.y < -1e-3) {
       const g = (0.02 - from.y) / dir.y;
@@ -325,23 +339,8 @@ class App {
       end.set(tr.x0 + dx * Math.min(1, k), 0.01, tr.z0 + dz * Math.min(1, k));
       normal = new THREE.Vector3(0, 1, 0);
     } else if (tr.h === 2) {
-      const y0 = ownFps ? THREE.MathUtils.clamp(cam.y + camSlope * Math.hypot(tr.x0 - cam.x, tr.z0 - cam.z), 0.1, 10) : 1.25;
-      const origin = new THREE.Vector3(tr.x0, y0, tr.z0);
-      const dir = end.clone().sub(origin).normalize();
-      this.raycaster.set(origin, dir);
-      this.raycaster.far = origin.distanceTo(end) + 1.5;
-      const hit = this.raycaster.intersectObjects(this.gscene.solidMeshes, false)[0];
-      if (hit) {
-        end.copy(hit.point);
-        normal = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : dir.clone().negate();
-        if (hit.instanceId !== undefined && hit.face) {
-          const im = new THREE.Matrix4();
-          hit.object.getMatrixAt(hit.instanceId, im);
-          normal = hit.face.normal.clone().transformDirection(im).transformDirection(hit.object.matrixWorld);
-        }
-      } else {
-        normal = dir.clone().negate();
-      }
+      // Keep the authoritative endpoint: a decorative mesh raycast must not move the impact.
+      normal = new THREE.Vector3(tr.x0 - tr.x1, (tr.y0 ?? 1.62) - endY, tr.z0 - tr.z1).normalize();
     }
     this.effects.tracer3(muzzle.clone(), end);
     if (normal) this.effects.impact(end, normal);
@@ -689,19 +688,22 @@ class App {
     if (this.screen !== 'game' || !this.net.latest || !this.isConnected()) return;
     if (this.net.ctrl && !this.ble?.connected) return; // the phone controller is in charge
     let s = this.menuOpen ? { ...NEUTRAL } : this.input.sample();
-    let aim = this.localAim;
+    let aim = this.isLookActive() ? this.input.yaw : this.localAim;
+    let pitch = this.isLookActive() ? this.input.pitch : 0;
+    if (this.settings.view === 'tps' && !s.ads && this.tpsAim !== undefined) { aim = this.tpsAim; pitch = this.tpsPitch; }
     const ble = this.ble?.connected ? this.ble.read() : null;
     if (ble && !this.menuOpen) { s = ble; aim = ble.aim; this.localAim = aim; }
     const active = !!(s.mx || s.mz || s.fire || s.ads || s.reload || s.interact || s.swap || s.jump || s.crouch || s.sprint)
       || !!(this.net.pred && needsStep(this.net.pred)); // send every tick while airborne/sliding (keeps prediction in sync with the server)
-    const aimChanged = Math.abs(wrapAngle(aim - this.lastSentAim)) > 0.01;
+    const aimChanged = Math.abs(wrapAngle(aim - this.lastSentAim)) > 0.001 || Math.abs(pitch - (this.lastSentPitch ?? 0)) > 0.001;
     const now = performance.now();
     if (!(active || aimChanged || this.wasActive || now - this.lastSentAt > INPUT_HEARTBEAT_MS)) return;
-    const msg = { seq: ++this.net.seq, mx: s.mx, mz: s.mz, aim: wrapAngle(aim), pitch: this.isLookActive() ? this.input.pitch : 0, fire: s.fire, ads: s.ads, reload: s.reload, interact: s.interact, swap: s.swap, jump: !!s.jump, crouch: !!s.crouch, sprint: !!s.sprint };
+    const msg = { seq: ++this.net.seq, mx: s.mx, mz: s.mz, aim: wrapAngle(aim), pitch, fire: s.fire, ads: s.ads, reload: s.reload, interact: s.interact, swap: s.swap, jump: !!s.jump, crouch: !!s.crouch, sprint: !!s.sprint };
     this.transport.emit(C2S.INPUT, msg);
     this.net.predict(msg);
     this.lastSentAt = now;
     this.lastSentAim = aim;
+    this.lastSentPitch = pitch;
     this.wasActive = active;
   }
 
@@ -719,13 +721,14 @@ class App {
       this.fpsAt = t;
     }
     this.input.updateLook(dt);
+    if (this.screen === 'game' && this.net.latest) this.renderGame(dt, t / 1000);
+    else this.renderIdle(t / 1000);
     this.inputAcc += dt;
     let n = 0;
     while (this.inputAcc >= TICK_DT && n++ < 4) { this.inputAcc -= TICK_DT; this.inputTick(); }
     if (this.inputAcc > TICK_DT) this.inputAcc = 0;
 
-    if (this.screen === 'game' && this.net.latest) this.renderGame(dt, t / 1000);
-    else this.renderIdle(t / 1000);
+    this.gscene.adaptResolution(dt, t / 1000);
     this.gscene.render(this.rig.camera);
   }
 
@@ -859,20 +862,30 @@ class App {
     const adsHeld = alive && (usingKeyboard ? this.input.ads : !!selfSnap?.ads);
     if (!this.scopeOverlay) {
       this.scopeOverlay = document.createElement('div');
-      this.scopeOverlay.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:25;background:linear-gradient(90deg,transparent 49.9%,#111 49.9%,#111 50.1%,transparent 50.1%),linear-gradient(transparent 49.9%,#111 49.9%,#111 50.1%,transparent 50.1%),radial-gradient(circle at center,transparent 0 32vh,#090b0d 32.3vh);';
+      this.scopeOverlay.id = 'scope-overlay';
+      const aperture = document.createElement('div');
+      aperture.id = 'scope-aperture';
+      this.scopeOverlay.append(aperture);
       document.body.append(this.scopeOverlay);
     }
-    this.scopeOverlay.hidden = !(look && adsHeld && WEAPONS[net.weaponType()]?.adsFov);
+    document.body.classList.toggle('ads-active', !!adsHeld);
+    const scopedAds = look && adsHeld && !!WEAPONS[net.weaponType()]?.adsFov && selfSnap?.drop !== 1 && !this.menuOpen;
+    this.scopeOverlay.hidden = !scopedAds;
     const selfSpeed = this.speedTrack.get(youId)?.v ?? 0;
     const wtype = net.weaponType() ?? 'kestrel';
     const [ldx, ldy] = this.input.takeLook();
     const crouched = selfStance === 1 || selfStance === 2;
-    if (fps && alive && selfPos) {
+    if (selfSnap?.drop === 1 && alive && selfPos) {
+      // Exterior insertion view: never put the lens inside the aircraft fuselage.
+      this.rig.focus.set(selfPos.x, selfY, selfPos.z);
+      this.rig.camera.position.set(selfPos.x - 14, selfY + 9, selfPos.z + 12);
+      this.rig.camera.lookAt(selfPos.x, selfY + 1, selfPos.z);
+      this.rig.setFov(70, dt);
+      this.gscene.setFirstPerson(true);
+    } else if (fps && alive && selfPos) {
       const adsFov = WEAPONS[wtype]?.adsFov ?? (wtype === 'breaker' ? 62 : wtype === 'hornet' ? 58 : 52);
-      this.rig.updateFps(dt, selfPos.x, selfPos.z, this.input.yaw, this.input.pitch, { ads: adsHeld, speed: selfSpeed, adsFov });
-      // move eye height with crouch/jump
-      this.eyeOff = (this.eyeOff ?? 0) + ((crouched ? -0.55 : 0) + selfY - (this.eyeOff ?? 0)) * Math.min(1, dt * 14);
-      this.rig.camera.position.y += this.eyeOff;
+      this.rig.updateFps(dt, selfPos.x, selfPos.z, this.input.yaw, this.input.pitch, { ads: adsHeld, speed: selfSpeed, adsFov, y: selfY, crouch: crouched });
+      // Eye origin exactly matches authoritative shot height, including ADS transitions.
       this.gscene.setFirstPerson(true);
     } else if (tps && alive && selfPos) {
       const adsFov = WEAPONS[wtype]?.adsFov ?? (wtype === 'breaker' ? 58 : wtype === 'hornet' ? 54 : 48);
@@ -881,10 +894,17 @@ class App {
       });
       // Aim the character at the point under the center crosshair (corrects shoulder parallax)
       const cdir = this.rig.camera.getWorldDirection(new THREE.Vector3());
-      const hitD = this.rayDistance(this.rig.camera.position, cdir, 90);
-      const tp = this.rig.camera.position.clone().addScaledVector(cdir, hitD ?? 60);
-      const hd = Math.hypot(tp.x - selfPos.x, tp.z - selfPos.z);
-      this.tpsAim = hd > 2.5 ? Math.atan2(tp.z - selfPos.z, tp.x - selfPos.x) : this.input.yaw;
+      const range = WEAPONS[wtype]?.range ?? 90;
+      let hitD = this.rayDistance(this.rig.camera.position, cdir, range) ?? range;
+      for (const p of players) {
+        if (!p.al || p.id === youId) continue;
+        const t = rayBox3(this.rig.camera.position, cdir, {x:[p.x-HIT_RADIUS,p.x+HIT_RADIUS],y:[p.y ?? 0,(p.y ?? 0)+(p.st===1?1.25:1.85)],z:[p.z-HIT_RADIUS,p.z+HIT_RADIUS]}, hitD);
+        if (t !== null) hitD = t;
+      }
+      const tp = this.rig.camera.position.clone().addScaledVector(cdir, hitD);
+      const aligned = anglesToPoint({x:selfPos.x,y:eyeHeight(selfY,crouched),z:selfPos.z}, tp);
+      this.tpsAim = aligned.aim;
+      this.tpsPitch = aligned.pitch;
       this.gscene.setFirstPerson(true);
     } else if (look && focus) {
       const t = players.find((p) => p.al && Math.abs(p.x - focus.x) < 0.01 && Math.abs(p.z - focus.z) < 0.01);
@@ -898,7 +918,7 @@ class App {
     // Hide the local mesh when cover pushes the lens into the shoulder/helmet.
     if (selfSoldier && alive) selfSoldier.root.visible = !fps && !(tps && this.rig.curDist < 1.35);
     // first-person weapon
-    const showVm = fps && alive;
+    const showVm = fps && alive && selfSnap?.drop !== 1 && !scopedAds;
     if (showVm !== this.viewmodel.visible) this.viewmodel.setVisible(showVm);
     if (showVm) {
       this.viewmodel.setWeapon(wtype);
@@ -944,7 +964,7 @@ class App {
     if (look) {
       // angular spread → screen pixels (at the current FOV)
       const pxPerRad = window.innerHeight / 2 / Math.tan(THREE.MathUtils.degToRad(this.rig.camera.fov / 2));
-      this.hud.crosshair(window.innerWidth / 2, window.innerHeight / 2, spread * pxPerRad, alive && !adsHeld);
+      this.hud.crosshair(window.innerWidth / 2, window.innerHeight / 2, spread * pxPerRad, alive && !(adsHeld && WEAPONS[wtype]?.adsFov));
     } else {
       this.hud.crosshair(this.input.mousePx.x, this.input.mousePx.y, spread * 260, usingKeyboard && !this.ble?.connected);
     }

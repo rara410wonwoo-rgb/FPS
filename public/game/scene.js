@@ -99,19 +99,33 @@ function instancedModel(name, items, fit, { shadow = true } = {}) {
   const toBase = new THREE.Matrix4().makeTranslation(-info.center.x, -info.box.min.y, -info.center.z);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
-  const meshes = info.parts.map((part) => {
-    const mesh = new THREE.InstancedMesh(part.geometry, part.material, items.length);
-    mesh.castShadow = shadow;
-    mesh.receiveShadow = true;
-    return mesh;
-  });
+  // Spatial batches allow both the view and shadow frusta to reject distant geometry.
+  const cells = new Map();
   items.forEach((it, i) => {
     const f = fit(it, info.size, i);
-    q.setFromAxisAngle(UP, f.rot ?? 0);
-    const world = new THREE.Matrix4().compose(new THREE.Vector3(f.x, f.y ?? 0, f.z), q, new THREE.Vector3(f.sx, f.sy, f.sz)).multiply(toBase);
-    info.parts.forEach((part, k) => meshes[k].setMatrixAt(i, m.copy(world).multiply(part.matrix)));
+    const key = `${Math.floor(f.x / 40)},${Math.floor(f.z / 40)}`;
+    if (!cells.has(key)) cells.set(key, []);
+    cells.get(key).push(f);
   });
-  for (const mesh of meshes) { mesh.instanceMatrix.needsUpdate = true; mesh.computeBoundingSphere(); group.add(mesh); }
+  const meshes = [];
+  for (const entries of cells.values()) {
+    const batch = info.parts.map(part => {
+      const mesh = new THREE.InstancedMesh(part.geometry, part.material, entries.length);
+      mesh.castShadow = shadow;
+      mesh.receiveShadow = true;
+      return mesh;
+    });
+    entries.forEach((f, i) => {
+      q.setFromAxisAngle(UP, f.rot ?? 0);
+      const world = new THREE.Matrix4().compose(new THREE.Vector3(f.x, f.y ?? 0, f.z), q, new THREE.Vector3(f.sx, f.sy, f.sz)).multiply(toBase);
+      info.parts.forEach((part, k) => batch[k].setMatrixAt(i, m.copy(world).multiply(part.matrix)));
+    });
+    for (const mesh of batch) {
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.computeBoundingSphere();
+      group.add(mesh); meshes.push(mesh);
+    }
+  }
   group.userData.meshes = meshes;
   return group;
 }
@@ -195,8 +209,9 @@ export class GameScene {
     this.container = container;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', stencil: false });
     // Neutral tone mapping keeps the sky blue and saturated (ACES washes a bright sky to grey/purple)
+    this.renderer.info.autoReset = false;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.94;
+    this.renderer.toneMappingExposure = 1.02;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
@@ -267,7 +282,7 @@ export class GameScene {
     }
     pmrem.dispose();
     this.scene.environment = this.envMap;
-    this.scene.environmentIntensity = 0.65;
+    this.scene.environmentIntensity = 0.8;
     this.viewScene.environment = this.envMap;
     this.viewScene.environmentIntensity = 0.9;
   }
@@ -275,7 +290,7 @@ export class GameScene {
   buildLights() {
     this.hemi = new THREE.HemisphereLight(0xcfd8e0, 0x6a5a3a, 0.55);
     this.scene.add(this.hemi);
-    this.sun = new THREE.DirectionalLight(0xffeed5, 2.7);
+    this.sun = new THREE.DirectionalLight(0xfff0dc, 2.2);
     this.sun.position.copy(SUN_DIR).multiplyScalar(90);
     const sc = this.sun.shadow.camera;
     sc.left = -60; sc.right = 60; sc.top = 60; sc.bottom = -60;
@@ -315,7 +330,9 @@ export class GameScene {
     this.composer.dispose?.();
     this.composer.renderTarget1?.dispose();
     this.composer.renderTarget2?.dispose();
+    for (const pass of this.composer.passes) pass.dispose?.();
     this.composer = null;
+    this.aoPass = null;
   }
 
   buildComposer(camera) {
@@ -341,6 +358,8 @@ export class GameScene {
     composer.addPass(new OutputPass());
     this.gradePass = new ShaderPass(GradeShader);
     composer.addPass(this.gradePass);
+    composer.setPixelRatio(this.renderer.getPixelRatio());
+    composer.setSize(this.container.clientWidth || window.innerWidth, this.container.clientHeight || window.innerHeight);
     return composer;
   }
 
@@ -388,7 +407,7 @@ export class GameScene {
       // cliff look: terraced heights
       let hgt = t * (22 + (noise(x, z) * 0.5 + 0.5) * 80);
       const step = 7;
-      hgt = THREE.MathUtils.lerp(hgt, Math.floor(hgt / step) * step + THREE.MathUtils.smoothstep(hgt % step, 0, step * 0.25) * step, 0.85 * t);
+      hgt = THREE.MathUtils.lerp(hgt, Math.floor(hgt / step) * step + THREE.MathUtils.smoothstep(hgt % step, 0, step * 0.25) * step, 0.28 * t);
       if (edge > WORLD_HALF + 4) hgt += Math.max(0, noise(x * 3, z * 3)) * 2.5 * THREE.MathUtils.smoothstep(edge, WORLD_HALF + 4, WORLD_HALF + 30);
       pos.setY(i, hgt);
     }
@@ -429,7 +448,7 @@ export class GameScene {
           pzDirt = smoothstep(0.48, 0.6, pzM);
           pzRock = smoothstep(0.25, 0.6, vRock + (pzR.r - 0.5) * 0.6);
           vec4 pzC = mix(pzG, pzD, pzDirt);
-          pzC = mix(pzC, pzR * vec4(1.05, 0.92, 0.82, 1.0), pzRock);
+          pzC = mix(pzC, pzR * vec4(0.72, 0.75, 0.73, 1.0), pzRock);
           // broad color variation hides texture tiling
           pzC.rgb *= 0.85 + 0.3 * pzF(vPzW.xz * 0.008);
           diffuseColor *= pzC;`)
@@ -935,6 +954,15 @@ export class GameScene {
     for (const c of crowns) {
       for (let k = 0; k < 3; k++) cards.push({ x: c.x, y: c.y, z: c.z, s: c.sx * 2.3, r: c.r + k * 1.05, t: (k - 1) * 0.5 });
     }
+    // Broken branch silhouettes using the existing leaf-card batch (no extra draw call).
+    for (const t of trees.filter(t => t.crown === 'cone')) {
+      for (let layer = 0; layer < 6; layer++) for (let branch = 0; branch < 3; branch++) {
+        const angle = branch * 2.094 + layer * 1.7;
+        const reach = t.crownSize * (0.8 - layer * 0.1);
+        cards.push({x:t.x + Math.cos(angle)*reach*0.7, y:t.height*(0.36+layer*0.085),
+          z:t.z + Math.sin(angle)*reach*0.7, s:reach*1.5, r:angle, t:0.35});
+      }
+    }
     const cardMat = new THREE.MeshStandardMaterial({ map: leafTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85, color: 0xd8e0c8 });
     addWind(cardMat, this.windUniforms, 0.05);
     this.scene.add(instanced(new THREE.PlaneGeometry(1, 1), cardMat, cards, (c, i, p, q, s) => {
@@ -1238,7 +1266,23 @@ export class GameScene {
     }
   }
 
+  adaptResolution(dt, time) {
+    if (document.hidden || dt <= 0 || dt >= 0.1) return;
+    this.frameEMA = (this.frameEMA ?? dt) * 0.96 + dt * 0.04;
+    if (this.nextResolutionAt === undefined) { this.nextResolutionAt = time + 8; return; }
+    if (time < this.nextResolutionAt) return;
+    this.nextResolutionAt = time + 3;
+    const cap = Math.min(window.devicePixelRatio || 1, this.q.pixelRatio);
+    const ratio = this.renderer.getPixelRatio();
+    const next = this.frameEMA > 0.023 ? Math.max(Math.min(cap, 0.65), ratio - 0.1)
+      : this.frameEMA < 0.0175 ? Math.min(cap, ratio + 0.05) : ratio;
+    if (Math.abs(next - ratio) < 0.01) return;
+    this.renderer.setPixelRatio(next);
+    this.resize();
+  }
+
   render(camera) {
+    this.renderer.info.reset();
     if (this.sky) this.sky.position.copy(camera.position);
     if (this.q.post) {
       if (!this.composer) this.composer = this.buildComposer(camera);

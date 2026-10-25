@@ -1,5 +1,5 @@
 // Static web build (solo only): bundles the in-browser server simulation into dist/web.
-// three.js is loaded from jsDelivr at a pinned version (for static hosting). The local server version uses no CDN.
+// All runtime dependencies are bundled locally; no CDN is needed.
 // Usage: npm run build:web
 import { readFile, writeFile, mkdir, cp } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -19,11 +19,10 @@ await esbuild.build({
   entryPoints: [path.join(root, 'public', 'web-entry.js')],
   bundle: true,
   format: 'esm',
-  external: ['three', 'three/addons/*'],
   minify: true,
   target: 'es2020',
   outfile: path.join(out, 'game.bundle.js'),
-  legalComments: 'none',
+  legalComments: 'linked',
 });
 
 const html = await readFile(path.join(root, 'public', 'index.html'), 'utf8');
@@ -31,19 +30,10 @@ const css = await readFile(path.join(root, 'public', 'styles.css'), 'utf8');
 const body = html.slice(html.indexOf('<body>') + 6, html.indexOf('</body>'))
   .replace('<script type="module" src="/game.js"></script>', '<script type="module" src="game.bundle.js"></script>');
 
-const page = `<title>PolyZone: Tactics</title>
-<style>
-:root { color-scheme: dark; }
-${css}
-</style>
-<script type="importmap">
-{ "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@${THREE_VERSION}/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@${THREE_VERSION}/examples/jsm/"
-} }
-</script>
-${body.trim()}
-`;
+const page = html
+  .replace(/<script type="importmap">[\s\S]*?<\/script>/, '')
+  .replace('<link rel="stylesheet" href="/styles.css">', `<style>${css}</style>`)
+  .replace('<script type="module" src="/game.js"></script>', '<script type="module" src="./game.bundle.js"></script>');
 await writeFile(path.join(out, 'index.html'), page);
 // also copy the CC0 assets (textures, HDRI, models) to assets/ next to index.html
 await cp(path.join(root, 'public', 'assets'), path.join(out, 'assets'), { recursive: true });

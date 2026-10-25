@@ -17,7 +17,7 @@ export const PLAYER_RADIUS = 0.55;
 export const HIT_RADIUS = 0.72;
 export const MAX_HP = 100;
 export const MOVE_SPEED = 7;
-export const ADS_SPEED_MULT = 0.6;
+export const ADS_SPEED_MULT = 1;
 export const ADS_SPREAD_MULT = 0;
 export const MUZZLE_OFFSET = 0.95;
 export const PICKUP_RANGE = 2.4;
@@ -156,6 +156,6 @@ export const BLUETOOTH = {
 export const QUALITY_PRESETS = {
   // post: post-processing (bloom, grading, MSAA), ao: GTAO ambient occlusion, grass: grass density ratio
   low: { pixelRatio: 0.75, shadows: false, shadowMapSize: 0, post: false, ao: false, msaa: 0, grass: 0.25 },
-  medium: { pixelRatio: 1.0, shadows: true, shadowMapSize: 1024, post: false, ao: false, msaa: 0, grass: 0.6 },
-  high: { pixelRatio: 1.5, shadows: true, shadowMapSize: 4096, post: true, ao: true, msaa: 4, grass: 1 },
+  medium: { pixelRatio: 1.0, shadows: true, shadowMapSize: 2048, post: false, ao: false, msaa: 0, grass: 0.6 },
+  high: { pixelRatio: 1.25, shadows: true, shadowMapSize: 2048, post: true, ao: false, msaa: 2, grass: 1 },
 };

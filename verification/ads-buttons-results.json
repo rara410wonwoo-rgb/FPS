@@ -1,0 +1,134 @@
+{
+  "results": [
+    {
+      "type": "kestrel",
+      "shots": 5,
+      "ndc": {
+        "x": 2.943484309136307e-16,
+        "y": 0
+      },
+      "scopeVisible": false,
+      "viewmodelVisible": true,
+      "scopeCenter": {
+        "x": 0,
+        "y": 0
+      },
+      "scopeSize": {
+        "w": 0,
+        "h": 0
+      },
+      "lens": [
+        {
+          "opacity": 0.08,
+          "depthWrite": false
+        },
+        {
+          "opacity": 1,
+          "depthWrite": false
+        }
+      ]
+    },
+    {
+      "type": "hornet",
+      "shots": 7,
+      "ndc": {
+        "x": 2.5894439514312887e-16,
+        "y": 0
+      },
+      "scopeVisible": false,
+      "viewmodelVisible": true,
+      "scopeCenter": {
+        "x": 0,
+        "y": 0
+      },
+      "scopeSize": {
+        "w": 0,
+        "h": 0
+      },
+      "lens": [
+        {
+          "opacity": 0.08,
+          "depthWrite": false
+        },
+        {
+          "opacity": 1,
+          "depthWrite": false
+        }
+      ]
+    },
+    {
+      "type": "breaker",
+      "shots": 2,
+      "ndc": {
+        "x": 2.3888526109140616e-16,
+        "y": 0
+      },
+      "scopeVisible": false,
+      "viewmodelVisible": true,
+      "scopeCenter": {
+        "x": 0,
+        "y": 0
+      },
+      "scopeSize": {
+        "w": 0,
+        "h": 0
+      },
+      "lens": [
+        {
+          "opacity": 1,
+          "depthWrite": false
+        }
+      ]
+    },
+    {
+      "type": "ranger",
+      "shots": 2,
+      "ndc": {
+        "x": 5.357856123664497e-16,
+        "y": 0
+      },
+      "scopeVisible": true,
+      "viewmodelVisible": false,
+      "scopeCenter": {
+        "x": 640,
+        "y": 400
+      },
+      "scopeSize": {
+        "w": 640,
+        "h": 640
+      },
+      "lens": [
+        {
+          "opacity": 1,
+          "depthWrite": false
+        }
+      ]
+    },
+    {
+      "type": "sentinel",
+      "shots": 2,
+      "ndc": {
+        "x": 9.059929961372128e-16,
+        "y": 0
+      },
+      "scopeVisible": true,
+      "viewmodelVisible": false,
+      "scopeCenter": {
+        "x": 640,
+        "y": 400
+      },
+      "scopeSize": {
+        "w": 640,
+        "h": 640
+      },
+      "lens": [
+        {
+          "opacity": 1,
+          "depthWrite": false
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "mouseChordTest": "passed (actual browser mouse events)"
+}

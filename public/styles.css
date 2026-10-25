@@ -221,3 +221,29 @@ body.fps #crosshair > i:nth-child(3), body.fps #crosshair > i:nth-child(4) { wid
   #stance { bottom: 64px; }
   #hud-tl { display: none; }
 }
+
+/* Field Operations — quiet neutral surfaces, readable instruments, clear battlefield. */
+:root { --panel: rgba(14,22,26,.86); --panel-line: rgba(202,218,217,.2); --text:#edf1ed; --muted:#a6b4b5; --accent:#c7d49b; --accent-2:#8fc5cc; }
+#menu-main { justify-content:flex-start; padding-left:6vw; background:linear-gradient(90deg,rgba(8,17,22,.94),rgba(8,17,22,.5) 38%,transparent 75%); }
+#menu-main .card { width:min(460px,100%); background:rgba(14,23,27,.94); border-top:2px solid var(--accent); padding:28px; box-shadow:0 24px 80px #0005; }
+.eyebrow { color:var(--accent); font:10px var(--mono); letter-spacing:.22em; }
+.brand { font-size:38px; letter-spacing:-.045em; }.brand .sub{font-size:23px;letter-spacing:-.02em;}.brand .mark{display:none;}
+.tagline { font:10px var(--mono); letter-spacing:.1em; line-height:1.8!important; margin-bottom:10px!important; }
+.card button { min-height:44px; background:#253239; border:1px solid #415156; border-radius:3px; }
+.card button:hover:not(:disabled) { background:#35484d; border-color:#a5bca9; }
+.card button.primary { color:#19251c; background:var(--accent); padding:15px; text-transform:uppercase; letter-spacing:.12em; font-size:12px; }
+input,select { background:#101a20; border-color:#415156; }
+.panel,.stats { border-radius:3px; box-shadow:0 4px 16px #0002; }
+#hud-zone { background:linear-gradient(180deg,rgba(12,20,24,.85),rgba(12,20,24,.45)); border-top:2px solid var(--accent); }
+#zone-timer { font-size:23px; font-weight:500; font-variant-numeric:tabular-nums; }
+#minimap { border-radius:3px; box-shadow:0 6px 24px #0004; }
+.ads-active #crosshair > i { display:none; }
+.ads-active #crosshair::after { content:''; position:absolute; width:3px; height:3px; background:#f16449; border-radius:50%; left:50%; top:50%; transform:translate(-50%,-50%); box-shadow:0 0 2px #000; }
+@media(max-width:650px) { #menu-main{padding:16px;justify-content:center;} #menu-main .card{padding:18px;} }
+
+/* Optical scope: transparent circular view, opaque outer mask and exact center crosshair. */
+#scope-overlay { position:fixed; inset:0; display:grid; place-items:center; pointer-events:none; z-index:11; overflow:hidden; }
+#scope-aperture { position:relative; width:80vmin; height:80vmin; box-sizing:border-box; border:6px solid #141819; border-radius:50%; box-shadow:0 0 0 100vmax rgba(3,6,7,.98), inset 0 0 22px rgba(0,0,0,.25); overflow:hidden; background:transparent; }
+#scope-aperture::before,#scope-aperture::after { content:''; position:absolute; background:#141819; }
+#scope-aperture::before { top:50%; left:0; width:100%; height:1px; transform:translateY(-50%); }
+#scope-aperture::after { left:50%; top:0; height:100%; width:1px; transform:translateX(-50%); }

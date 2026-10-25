@@ -31,7 +31,7 @@ export class InputManager {
       if (!this.locked && e.target !== canvas) return; // without lock, only over the game view
       const dx = Math.max(-200, Math.min(200, e.movementX || 0));
       const dy = Math.max(-200, Math.min(200, e.movementY || 0));
-      const k = this.sensitivity * (this.ads ? 0.6 : 1);
+      const k = this.sensitivity;
       this.yaw += dx * k;
       this.pitch = Math.max(-1.4, Math.min(1.4, this.pitch - dy * k));
       this.lookDX += dx;
@@ -72,17 +72,18 @@ export class InputManager {
 
     canvas.addEventListener('pointermove', (e) => this.onMove(e));
     window.addEventListener('pointermove', (e) => this.onMove(e));
-    canvas.addEventListener('pointerdown', (e) => {
+    // Mouse events fire for each button in a chord; pointerdown only fires for the first.
+    canvas.addEventListener('mousedown', (e) => {
       if (!this.enabled) return;
       if (this.firstPerson && !this.locked && !this.lockFailed) { this.requestLock(); return; }
       if (e.button === 0) this.fire = true;
       if (e.button === 2) this.ads = true;
-      if (!this.firstPerson) canvas.setPointerCapture?.(e.pointerId);
     });
-    window.addEventListener('pointerup', (e) => {
+    window.addEventListener('mouseup', (e) => {
       if (e.button === 0) this.fire = false;
       if (e.button === 2) this.ads = false;
     });
+    canvas.addEventListener('pointercancel', () => this.releaseAll());
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); onZoom?.(Math.sign(e.deltaY) * 0.06); }, { passive: false });
   }

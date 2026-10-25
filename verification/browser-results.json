@@ -1,0 +1,55 @@
+{
+  "hip": {
+    "medianMs": 16.699999999999818,
+    "p95Ms": 33.399999999999636,
+    "ratio": 1,
+    "drawCalls": 1494,
+    "triangles": 7645800
+  },
+  "ads": {
+    "medianMs": 16.69999999999891,
+    "p95Ms": 33.30000000000109,
+    "ratio": 1,
+    "drawCalls": 1105,
+    "triangles": 6793074
+  },
+  "alignment": {
+    "sightNdc": {
+      "x": 0,
+      "y": 0
+    },
+    "viewmodelVisible": true,
+    "firstPerson": true,
+    "cameraY": 1.62,
+    "selfY": 0
+  },
+  "shotAlignment": {
+    "x": 2.943484309136307e-16,
+    "y": 0
+  },
+  "shots": 2,
+  "sights": {
+    "kestrel": {
+      "x": 0,
+      "y": 0
+    },
+    "hornet": {
+      "x": 0,
+      "y": 0
+    },
+    "breaker": {
+      "x": 0,
+      "y": 4.443163723451655e-17
+    },
+    "ranger": {
+      "x": 0,
+      "y": 0
+    },
+    "sentinel": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  "errors": [],
+  "missing": []
+}

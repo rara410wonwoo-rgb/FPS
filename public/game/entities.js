@@ -301,9 +301,9 @@ export class ItemView {
 
 // ───────────────────────── Animated soldier (Quaternius CC0 model) ─────────────────────────
 
-// Camo palettes: [base, blotch 1, blotch 2]. Index 0 is my character (urban blue digital), the rest are enemy variants
+// Camo palettes: [base, blotch 1, blotch 2]. Index 0 is my character (muted field camouflage), the rest are enemy variants
 const CAMO = [
-  [0x7f8a99, 0x4d5a6c, 0x2e3542],
+  [0x85836a, 0x63694f, 0x444a3a],
   [0xb3a07a, 0x8a7550, 0x5a4c34],
   [0x6f7550, 0x4f5536, 0x34382a],
   [0x8c8c86, 0x5f605c, 0x3a3b38],
@@ -360,7 +360,7 @@ export class ModelSoldier {
     // Normalize visible geometry rather than bone endpoints: the head/helmet
     // extends beyond the last bone and previously produced a ~2.6m avatar.
     const head = this.body.getObjectByName('Head');
-    if (head) head.scale.multiplyScalar(0.8);
+    if (head) head.scale.multiplyScalar(0.72);
     this.body.updateMatrixWorld(true);
     const bounds = new THREE.Box3().setFromObject(this.body, true);
     const height = bounds.max.y - bounds.min.y;
@@ -387,10 +387,10 @@ export class ModelSoldier {
       } else if (o.material) {
         o.material = o.material.clone();
         // gear colors: helmet/kit = olive/sand, hands = tactical gloves
-        const gear = { Grey: isSelf ? 0x4a5260 : 0x5c5f4c, Grey2: 0x6b6a5a, LightGrey: 0x8a8775, DarkGrey: 0x3a3c36, Skin: 0x2e2b26 }[name];
+        const gear = { Grey: isSelf ? 0x4c5143 : 0x5c5f4c, Grey2: 0x6b6a5a, LightGrey: 0x8a8775, DarkGrey: 0x3a3c36, Skin: 0x2e2b26 }[name];
         if (gear !== undefined && !ALL_WEAPON_NODES.includes(o.parent?.name) && !ALL_WEAPON_NODES.includes(o.name)) o.material.color.set(gear);
-        o.material.roughness = name === 'Skin' ? 0.75 : 0.5;
-        o.material.metalness = /Grey|Black/.test(name) ? 0.35 : 0;
+        o.material.roughness = name === 'Skin' ? 0.86 : 0.78;
+        o.material.metalness = /Weapon|Gun|Metal/.test(o.name) ? 0.65 : 0;
         o.material.envMapIntensity = 0.8;
       }
     });

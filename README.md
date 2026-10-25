@@ -1,3 +1,11 @@
+# 2026-10-25 ADS 수정
+
+이번 ADS 사격·조준경 수정 내용은 [UPDATE-2026-10-25.md](UPDATE-2026-10-25.md)를 확인하세요.
+
+# 2026-10-24 수정본
+
+ADS 조준 정렬과 그래픽/성능 수정 내용 및 현재 검증 범위는 [UPDATE-2026-10-24.md](UPDATE-2026-10-24.md)를 먼저 확인하세요. 아래는 기존 프로젝트 안내입니다.
+
 ## Expanded battle royale update
 
 The battlefield is now 600 × 600 metres (nine times the original area). Houses have doorway collision and indoor weapon crates, ammo and healing pickups. Matches begin on an aircraft: press Space or the phone Jump button to exit, then Jump to open the parachute; it also opens automatically below 38 metres. Steer with movement controls. Periodic supply pickups descend under parachutes.

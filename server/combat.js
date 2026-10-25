@@ -1,5 +1,6 @@
 // Server-authoritative combat: fire rate, ammo, reloading, hitscan, damage
 import { WEAPONS, HIT_RADIUS, MUZZLE_OFFSET, ADS_SPREAD_MULT, MOVEMENT } from '../shared/config.js';
+import { eyeHeight } from '../shared/aim.js';
 import { rayBox3 } from '../shared/ray3.js';
 
 export function currentWeapon(p) {
@@ -83,7 +84,7 @@ export function fireShot(match, p, w, def) {
     const a = p.control.aim + (match.rand() * 2 - 1) * spread;
     const pitch = p.control.pitch ?? 0;
     const dx = Math.cos(a) * Math.cos(pitch), dz = Math.sin(a) * Math.cos(pitch), dy = Math.sin(pitch);
-    const oy = (p.y ?? 0) + (p.crouch ? 1.07 : 1.62);
+    const oy = eyeHeight(p.y ?? 0, p.crouch);
     const origin = {x:ox,y:oy,z:oz}, dir = {x:dx,y:dy,z:dz};
     // The ray starts at the character center. Even if the muzzle is inside a wall, the wall hit comes first, so shooting through walls is impossible.
     let bestT = def.range, wall = null, target = null;

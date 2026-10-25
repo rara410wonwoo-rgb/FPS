@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PolyZone: Tactics</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/styles.css">
   <script type="importmap">
   {
@@ -85,10 +86,11 @@
   <!-- ───────── Main menu ───────── -->
   <div id="menu-main" class="overlay">
     <div class="card">
+      <p class="eyebrow">POLYZONE / FIELD OPERATIONS</p>
       <div class="brand"><span class="mark">▲</span>PolyZone<span class="sub">: Tactics</span></div>
-      <p class="tagline">Third/first-person 3D battle royale · 12 players · server-authoritative</p>
+      <p class="tagline">FIELD OPERATIONS / 12 OPERATORS / ONE SURVIVOR</p>
       <label>Callsign <input id="name-input" maxlength="16" autocomplete="off"></label>
-      <button id="btn-solo" class="primary">Solo play (11 bots)</button>
+      <button id="btn-solo" class="primary">Deploy to battlefield</button>
       <button id="btn-solo-phone" class="phone">📱 Play with your phone as controller</button>
       <div id="multi-section">
         <div class="sep">Online room (up to 4 players + bots)</div>
@@ -140,8 +142,8 @@
         <label>Graphics quality
           <select id="quality">
             <option value="low">Low (no shadows or post-processing)</option>
-            <option value="medium">Medium (shadows + bloom and color grading)</option>
-            <option value="high">High (high-res shadows + ambient occlusion)</option>
+            <option value="medium">Balanced (PBR + shadows · adaptive resolution)</option>
+            <option value="high">High (PBR + bloom + grading · adaptive resolution)</option>
           </select>
         </label>
       </div>

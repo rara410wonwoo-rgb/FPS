@@ -18,7 +18,7 @@ function mats() {
   M.wood = new THREE.MeshStandardMaterial({ map: wood.map, normalMap: wood.normalMap, roughness: 0.6, color: 0xb08a60 });
   M.sleeve = new THREE.MeshStandardMaterial({ map: camo.map, normalMap: camo.normalMap, roughness: 0.95 });
   M.glove = new THREE.MeshStandardMaterial({ color: 0x2c2a26, roughness: 0.75, normalMap: fabric.normalMap, normalScale: new THREE.Vector2(0.4, 0.4) });
-  M.lens = new THREE.MeshStandardMaterial({ color: 0x6a8a90, roughness: 0.05, metalness: 0.9, transparent: true, opacity: 0.35 });
+  M.lens = new THREE.MeshBasicMaterial({ color: 0xb8dce2, transparent: true, opacity: 0.08, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
   M.dot = new THREE.MeshBasicMaterial({ color: new THREE.Color(6, 0.3, 0.2) });
   M.brass = new THREE.MeshStandardMaterial({ color: 0xc9a046, roughness: 0.25, metalness: 1 });
   return M;
@@ -55,7 +55,9 @@ function buildWeapon(type) {
     grip.rotation.x = 0.4;
     g.add(grip);
     g.add(rbox(0.008, 0.012, 0.012, m.dot, 0, 0.042, -0.7, 0.002)); // bead sight
-    g.add(rbox(0.03, 0.012, 0.02, m.darkMetal, 0, 0.042, 0.07, 0.003));
+    // Open rear notch: do not put an opaque block over the line of sight.
+    g.add(rbox(0.008, 0.012, 0.02, m.darkMetal, -0.012, 0.042, 0.07, 0.002));
+    g.add(rbox(0.008, 0.012, 0.02, m.darkMetal, 0.012, 0.042, 0.07, 0.002));
     g.userData = { ...g.userData, sightY: 0.045, muzzle: new THREE.Vector3(0, 0.018, -0.74), eject: new THREE.Vector3(0.03, 0.01, -0.02), adsZ: -0.3 };
     mag = pump;
   } else if (type === 'hornet') {
@@ -115,8 +117,12 @@ function buildWeapon(type) {
     g.add(rbox(0.048, 0.09, 0.02, m.polymer, 0, -0.01, 0.34, 0.008));
     // red dot sight
     g.add(rbox(0.036, 0.012, 0.07, m.darkMetal, 0, 0.053, -0.04, 0.003));
-    const housing = cyl(0.02, 0.06, m.darkMetal, 0, 0.078, -0.04, 18);
+    const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.06,18,1,true), m.darkMetal);
+    housing.rotation.x = Math.PI / 2;
+    housing.position.set(0,0.078,-0.04);
     g.add(housing);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.018,0.003,6,24),m.darkMetal);
+    rim.position.set(0,0.078,-0.008);g.add(rim);
     const lens = new THREE.Mesh(new THREE.CircleGeometry(0.016, 20), m.lens);
     lens.position.set(0, 0.078, -0.008);
     g.add(lens);
@@ -202,7 +208,10 @@ export class ViewModel {
     this.weapon = buildWeapon(type);
     if (type === 'sentinel' || type === 'ranger') {
       const m = mats();
-      this.weapon.add(cyl(0.035, 0.24, m.darkMetal, 0, 0.15, -0.12));
+      this.weapon.userData.sightY = 0.15;
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.24, 24, 1, true), m.darkMetal);
+      tube.rotation.x = Math.PI / 2; tube.position.set(0, 0.15, -0.12);
+      this.weapon.add(tube);
       this.weapon.add(cyl(0.026, 0.012, m.lens, 0, 0.15, 0.006));
       if (type === 'sentinel') this.weapon.add(cyl(0.012, 0.4, m.metal, 0, 0.018, -0.8));
     }
@@ -265,13 +274,13 @@ export class ViewModel {
     this.recoilYaw *= Math.exp(-dt * 12);
     this.swapT = Math.max(0, this.swapT - dt * 2.5);
     const r = this.recoil;
-    const bobK = this.bobAmt * (1 - a * 0.85);
+    const bobK = this.bobAmt * (1 - a);
 
     const ud = this.weapon.userData;
-    const adsPos = new THREE.Vector3(0, -ud.sightY, ud.adsZ);
+    const adsPos = new THREE.Vector3(0, -ud.sightY * this.holder.scale.y, ud.adsZ);
     const pos = this.hip.clone().lerp(adsPos, a);
-    pos.x += Math.sin(this.bob * 0.5) * 0.014 * bobK + this.sway.x * (1 - a * 0.7);
-    pos.y += -Math.abs(Math.cos(this.bob * 0.5)) * 0.012 * bobK + this.sway.y * (1 - a * 0.7);
+    pos.x += Math.sin(this.bob * 0.5) * 0.014 * bobK + this.sway.x * (1 - a);
+    pos.y += -Math.abs(Math.cos(this.bob * 0.5)) * 0.012 * bobK + this.sway.y * (1 - a);
     pos.z += r * 0.05;
     // Reload: tilt and lower the gun, magazine out → in
     let reloadTilt = 0;
@@ -302,8 +311,8 @@ export class ViewModel {
 
     this.root.position.copy(pos);
     this.root.rotation.set(
-      r * 0.09 + this.sway.y * 0.6 + reloadTilt * 0.25 - this.swapT * 0.6,
-      this.recoilYaw + this.sway.x * 0.8,
+      r * 0.09 + this.sway.y * 0.6 * (1 - a) + reloadTilt * 0.25 - this.swapT * 0.6,
+      this.recoilYaw + this.sway.x * 0.8 * (1 - a),
       reloadTilt * 0.7 + Math.sin(this.bob * 0.5) * 0.02 * bobK,
     );
 

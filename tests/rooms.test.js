@@ -35,6 +35,23 @@ describe('rooms and sessions', () => {
     assert.equal(room.match.state, 'PLAYING');
   });
 
+  it('solo with a phone (wait): stays in the lobby, phone pairs, host starts', () => {
+    const f = fakeManager({ countdown: 4 });
+    const c = f.makeClient();
+    const r = c.send(C2S.CREATE, { name: 'Solo', solo: true, wait: true });
+    assert.equal(r.ok, true, r.reason);
+    const room = f.mgr.rooms.get(r.roomCode);
+    assert.equal(room.match, null, 'no match until Start');
+    const pair = c.send(C2S.PAIR_CREATE);
+    assert.equal(pair.ok, true, pair.reason);
+    const phone = f.makeClient('10.0.0.7');
+    assert.equal(phone.send(C2S.CONTROLLER_PAIR, { code: pair.code }).ok, true);
+    assert.equal(room.match, null, 'pairing does not start the match');
+    assert.equal(c.send(C2S.START).ok, true);
+    assert.equal(room.match.state, 'COUNTDOWN');
+    assert.equal(room.match.players.size, 12);
+  });
+
   it('two PC sessions receive the same match state (same tick and positions)', () => {
     const f = fakeManager();
     const { c: a, r } = createRoom(f);

@@ -155,7 +155,7 @@ class App {
     this.transport.emit(C2S.RESUME, { playerId: s.playerId, token: s.token }, (r) => {
       if (r?.ok) {
         this.hud.toast('Session restored');
-        if (!r.solo) this.showScreen('lobby');
+        if (!r.solo || this.room?.matchState === 'LOBBY') this.showScreen('lobby');
       } else {
         store('session', SESSION_KEY, null);
         if (this.screen !== 'main') this.leaveToMain(r?.reason ?? 'Could not restore your session.');
@@ -177,7 +177,7 @@ class App {
   onRoomState(d) {
     this.room = d;
     this.renderLobby();
-    if (d.matchState === 'LOBBY' && this.screen !== 'lobby' && !d.solo) this.showScreen('lobby');
+    if (d.matchState === 'LOBBY' && this.screen !== 'lobby') this.showScreen('lobby');
     if (this.endShown) this.renderResultsButtons();
   }
 
@@ -357,8 +357,8 @@ class App {
 
     $('name-input').value = this.settings.name || `Player${Math.floor(Math.random() * 900 + 100)}`;
     $('btn-solo').onclick = () => this.create(true);
-    // Create a solo match and immediately show the phone QR code
-    $('btn-solo-phone').onclick = () => this.create(true, () => this.openPhonePanel());
+    // Solo with a phone: open a lobby and show the QR code; the match starts only when you press Start
+    $('btn-solo-phone').onclick = () => this.create(true, () => this.openPhonePanel(), true);
     $('btn-phone-hud').onclick = () => this.openPhonePanel();
     $('btn-phone-close').onclick = () => this.closePhonePanel();
     window.addEventListener('keydown', (e) => {
@@ -461,16 +461,16 @@ class App {
     return n;
   }
 
-  create(solo, then) {
+  create(solo, then, wait = false) {
     this.audio.unlock();
     const name = this.playerName();
     if (!name) { $('main-status').textContent = 'Enter a name.'; return; }
     $('main-status').textContent = solo ? 'Setting up solo match…' : 'Creating room…';
-    this.transport.emit(C2S.CREATE, { name, solo }, (r) => {
+    this.transport.emit(C2S.CREATE, { name, solo, wait }, (r) => {
       if (!r?.ok) { $('main-status').textContent = r?.reason ?? 'Something went wrong.'; return; }
       $('main-status').textContent = '';
       if (this.mode !== 'local') store('session', SESSION_KEY, { playerId: r.playerId, token: r.token, roomCode: r.roomCode });
-      if (!solo) this.showScreen('lobby');
+      if (!solo || wait) this.showScreen('lobby');
       if (then) setTimeout(then, 500); // run after the room info (ROOM_STATE) arrives
     });
   }
@@ -546,6 +546,11 @@ class App {
     const isHost = r.hostId === r.you;
     $('btn-start').hidden = !isHost;
     $('lobby-wait').hidden = isHost;
+    const phone = r.humans.find((h) => h.playerId === r.you)?.controller;
+    $('lobby-phone-hint').hidden = !r.solo || r.matchState !== 'LOBBY';
+    $('lobby-phone-hint').textContent = phone
+      ? '✅ Phone connected. Tap ⚙ Layout on the phone to arrange buttons and the joystick, then press Start match.'
+      : 'Connect your phone first, set up its layout (⚙ Layout on the phone), then press Start match.';
     $('lobby-count').textContent = `${r.humans.length}/${r.maxHumans ?? MAX_HUMANS} players · bots fill up to 12 at start`;
     $('lobby-state').textContent = r.matchState === 'LOBBY' ? 'Waiting' : r.matchState === 'FINISHED' ? 'Last match over — the host can start a new one' : 'Match in progress';
   }
@@ -610,7 +615,9 @@ class App {
     $('btn-phone-hud').textContent = connected ? '📱 Phone connected' : '📱 Connect phone';
     if (connected && this.phonePanelOpen) {
       const status = $('phone-status');
-      status.textContent = '✅ Phone connected! Control the game from your phone now.';
+      status.textContent = this.screen === 'lobby'
+        ? '✅ Phone connected! Set up your layout on the phone, then press Start match.'
+        : '✅ Phone connected! Control the game from your phone now.';
       status.className = 'status ok';
       this.audio.pickup();
       setTimeout(() => this.closePhonePanel(), 1400);

@@ -52,7 +52,11 @@
     #msg { color: var(--accent); min-height: 1.2em; }
     #tap-full { position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 6; background: rgba(0,0,0,0.7); border: 1px solid var(--accent); padding: 10px 16px; border-radius: 8px; font-weight: 800; font-size: 13px; pointer-events: none; }
     /* Custom layout: buttons moved in the editor are positioned by their center */
-    .btn { opacity: var(--btn-alpha, 1); }
+    .btn, #stick { opacity: var(--btn-alpha, 1); }
+    /* Joystick home: where the stick rests (and stays, in Fixed mode). The canvas draws the stick here */
+    #stickhome { position: absolute; left: 14%; top: 68%; width: clamp(100px, 36vh, 160px); height: clamp(100px, 36vh, 160px); transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none; touch-action: none; }
+    body.editing #stickhome { pointer-events: auto; outline: 2px dashed rgba(255,255,255,0.55); outline-offset: 3px; }
+    body.editing #stickhome.selected { outline: 2px solid var(--accent); }
     .btn.custom { right: auto !important; bottom: auto !important; transform: translate(-50%, -50%) !important; }
     .btn.custom.on { transform: translate(-50%, -50%) scale(0.94) !important; }
     #layout-open { position: fixed; top: calc(6px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); z-index: 6; font: inherit; font-size: 11px; font-weight: 800; padding: 5px 10px; border-radius: 14px; border: 1px solid var(--line); background: rgba(0,0,0,0.45); color: #fff; touch-action: manipulation; }
@@ -75,6 +79,7 @@
 <body>
   <div id="pad">
     <div id="movezone"><canvas id="stick"></canvas><div id="sprintlock">▲ Push all the way to sprint</div></div>
+    <div id="stickhome" title="Joystick"></div>
     <div id="lookzone"><canvas id="lookpad"></canvas></div>
     <div id="fire" class="btn" title="Fire"><svg viewBox="0 0 24 24"><path d="M9 3h6l1 4v13H8V7z"/><path d="M8 11h8"/></svg>FIRE</div>
     <div id="fire2" class="btn" title="Fire"><svg viewBox="0 0 24 24"><path d="M9 3h6l1 4v13H8V7z"/></svg></div>
@@ -90,6 +95,7 @@
     <span id="edit-sel">Drag a button</span>
     <label>Size <input id="edit-size" type="range" min="60" max="160" step="5" value="100" disabled></label>
     <label>Opacity <input id="edit-alpha" type="range" min="30" max="100" step="5" value="100"></label>
+    <button id="edit-stickmode" type="button">Joystick: Floating</button>
     <button id="edit-reset" type="button">Reset</button>
     <button id="edit-cancel" type="button">Cancel</button>
     <button id="edit-save" class="save" type="button">Save</button>
@@ -107,7 +113,7 @@
       <button id="layout-start" class="alt" type="button">⚙ Customize button layout</button>
       <p id="msg"></p>
       <ul id="caps"></ul>
-      <p>Anywhere on the left: movement joystick (push all the way up to sprint) · drag on the right: look around · hold FIRE to shoot · JUMP: jump / vault over cover · CROUCH: crouch (slide while sprinting) · ⚙ Layout: drag buttons where you want them and resize them — saved on this phone</p>
+      <p>Left side: movement joystick (push all the way up to sprint) · drag on the right: look around · hold FIRE to shoot · JUMP: jump / vault over cover · CROUCH: crouch (slide while sprinting) · ⚙ Layout: drag buttons and the joystick where you want them, resize them, pick a Floating or Fixed joystick — saved on this phone</p>
     </div>
   </div>
   <div id="rotate" class="overlay"><div class="card"><div class="icon">⟳</div><h1>Please turn your device sideways</h1><p>The controller is designed for landscape. On devices without orientation lock (iPhone, etc.) rotate it yourself.</p></div></div>

@@ -161,6 +161,7 @@ export class RoomManager {
     const name = validateName(payload?.name);
     if (!name) return { ok: false, reason: 'Enter a name of 1–16 characters.' };
     const solo = payload?.solo === true;
+    const wait = payload?.wait === true; // solo with a phone: stay in the lobby until the host presses Start
     if (c.playerId) this.onLeave(c);
     let code;
     do { code = this.code(ROOM_CODE_LENGTH); } while (this.rooms.has(code));
@@ -168,7 +169,7 @@ export class RoomManager {
     this.rooms.set(code, room);
     const s = this.issueSession(c, room, name);
     room.hostId = s.playerId;
-    if (solo) this.startMatch(room);
+    if (solo && !wait) this.startMatch(room);
     this.broadcastRoom(room);
     if (room.match) this.sendFull(room, room.humans.get(s.playerId));
     return { ok: true, ...s, roomCode: code, solo };

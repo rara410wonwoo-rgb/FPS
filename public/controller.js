@@ -66,6 +66,7 @@ function onPaired(r) {
   try { sessionStorage.setItem(TOKEN_KEY, r.controllerToken); } catch { /* ignore */ }
   setConn(`Connected · ${r.name}`, 'ok');
   $('start').hidden = true;
+  if (!lastGameState) $('st-game').textContent = 'Waiting for the PC to start · ⚙ Layout to customize';
 }
 
 function showStart(msg) {
@@ -180,18 +181,26 @@ function updateMove() {
 const stickCanvas = $('stick');
 const stick = { id: null, ox: 0, oy: 0, x: 0, y: 0, max: 70 };
 const moveZone = $('movezone');
+// Joystick rest spot and radius, from the #stickhome element (moved/resized in the layout editor)
+function stickHome() {
+  const r = moveZone.getBoundingClientRect();
+  const h = $('stickhome').getBoundingClientRect();
+  return { x: h.left + h.width / 2 - r.left, y: h.top + h.height / 2 - r.top, R: h.width / 2 };
+}
 moveZone.addEventListener('pointerdown', (e) => {
   if (stick.id !== null) return;
   const r = moveZone.getBoundingClientRect();
+  const home = stickHome();
   stick.id = e.pointerId;
-  stick.ox = e.clientX - r.left; stick.oy = e.clientY - r.top;
-  stick.x = stick.ox; stick.y = stick.oy;
-  stick.max = Math.min(80, Math.max(50, r.height * 0.18));
+  stick.max = home.R;
+  // Floating: the stick starts where you touch. Fixed: it stays at its home spot
+  if (layout.stickMode === 'fixed') { stick.ox = home.x; stick.oy = home.y; } else { stick.ox = e.clientX - r.left; stick.oy = e.clientY - r.top; }
   capture(moveZone, e);
   e.preventDefault();
+  moveStick(e);
 });
-moveZone.addEventListener('pointermove', (e) => {
-  if (e.pointerId !== stick.id) return;
+moveZone.addEventListener('pointermove', (e) => { if (e.pointerId === stick.id) moveStick(e); });
+function moveStick(e) {
   const r = moveZone.getBoundingClientRect();
   stick.x = e.clientX - r.left; stick.y = e.clientY - r.top;
   let dx = (stick.x - stick.ox) / stick.max;
@@ -204,7 +213,7 @@ moveZone.addEventListener('pointermove', (e) => {
     stickV.x = dx * k; stickV.y = dy * k;
   }
   updateMove();
-});
+}
 const endStick = (e) => { if (e.pointerId !== stick.id) return; stick.id = null; stickV.x = stickV.y = 0; updateMove(); send(true); };
 moveZone.addEventListener('pointerup', endStick);
 moveZone.addEventListener('pointercancel', endStick);
@@ -273,7 +282,7 @@ document.addEventListener('touchmove', (e) => { if (e.target.tagName !== 'INPUT'
 // ───────── Custom layout: drag buttons to move them, resize the selected one, set opacity. Saved on this phone ─────────
 // Positions are fractions of the screen (button center), so the layout survives rotation and reconnects.
 const LAYOUT_KEY = 'polyzone.layout.v1';
-const LAYOUT_IDS = BUTTONS.map(([id]) => id);
+const LAYOUT_IDS = [...BUTTONS.map(([id]) => id), 'stickhome'];
 const pad = $('pad');
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 let layout = loadLayout();
@@ -282,11 +291,12 @@ let selected = null;
 let drag = null;
 
 function loadLayout() {
-  const out = { buttons: {}, opacity: 1 };
+  const out = { buttons: {}, opacity: 1, stickMode: 'float' };
   try {
     const v = JSON.parse(localStorage.getItem(LAYOUT_KEY));
     if (!v || typeof v !== 'object') return out;
     if (Number.isFinite(v.opacity)) out.opacity = clamp(v.opacity, 0.3, 1);
+    if (v.stickMode === 'fixed') out.stickMode = 'fixed';
     for (const id of LAYOUT_IDS) {
       const p = v.buttons?.[id];
       if (!p || typeof p !== 'object') continue;
@@ -300,11 +310,12 @@ function loadLayout() {
 }
 function applyLayout(l) {
   pad.style.setProperty('--btn-alpha', String(l.opacity));
+  $('edit-stickmode').textContent = `Joystick: ${l.stickMode === 'fixed' ? 'Fixed' : 'Floating'}`;
   for (const id of LAYOUT_IDS) {
     const el = $(id);
     const p = l.buttons[id] ?? {};
     const moved = p.x !== undefined;
-    el.classList.toggle('custom', moved);
+    if (id !== 'stickhome') el.classList.toggle('custom', moved);
     el.style.left = moved ? `${p.x * 100}%` : '';
     el.style.top = moved ? `${p.y * 100}%` : '';
     el.style.scale = p.s && p.s !== 1 ? String(p.s) : '';
@@ -346,7 +357,7 @@ $('layout-start').addEventListener('click', openEditor);
 $('edit-save').addEventListener('click', () => closeEditor(true));
 $('edit-cancel').addEventListener('click', () => closeEditor(false));
 $('edit-reset').addEventListener('click', () => {
-  editing = { buttons: {}, opacity: 1 };
+  editing = { buttons: {}, opacity: 1, stickMode: 'float' };
   $('edit-alpha').value = '100';
   applyLayout(editing);
   select(selected);
@@ -356,6 +367,7 @@ $('edit-size').addEventListener('input', (e) => {
   (editing.buttons[selected] ??= {}).s = Number(e.target.value) / 100;
   applyLayout(editing);
 });
+$('edit-stickmode').addEventListener('click', () => { editing.stickMode = editing.stickMode === 'fixed' ? 'float' : 'fixed'; applyLayout(editing); });
 $('edit-alpha').addEventListener('input', (e) => { editing.opacity = Number(e.target.value) / 100; applyLayout(editing); });
 
 // While editing, capture-phase listeners on the pad swallow touches so nothing reaches the game controls
@@ -363,7 +375,7 @@ pad.addEventListener('pointerdown', (e) => {
   if (!editing) return;
   e.stopPropagation();
   e.preventDefault();
-  const el = e.target.closest('.btn');
+  const el = e.target.closest('.btn, #stickhome');
   select(el?.id ?? null);
   if (!el || drag) return;
   const r = el.getBoundingClientRect();
@@ -376,7 +388,8 @@ pad.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.pid) return;
   const pr = pad.getBoundingClientRect();
   const b = (editing.buttons[drag.id] ??= {});
-  b.x = clamp((e.clientX - drag.dx - pr.left) / pr.width, 0.02, 0.98);
+  // The joystick has to stay inside the left movement zone
+  b.x = clamp((e.clientX - drag.dx - pr.left) / pr.width, 0.02, drag.id === 'stickhome' ? 0.4 : 0.98);
   b.y = clamp((e.clientY - drag.dy - pr.top) / pr.height, 0.04, 0.96);
   applyLayout(editing);
 }, true);
@@ -415,15 +428,14 @@ function draw() {
   requestAnimationFrame(draw);
   let dpr = fit(stickCanvas);
   let g = stickCanvas.getContext('2d');
-  const W = stickCanvas.clientWidth;
-  const H = stickCanvas.clientHeight;
   g.clearRect(0, 0, stickCanvas.width, stickCanvas.height);
   g.save();
   g.scale(dpr, dpr);
   // Joystick: drawn at its default lower-left spot when not touched
-  const ox = stick.id !== null ? stick.ox : W * 0.32;
-  const oy = stick.id !== null ? stick.oy : H * 0.68;
-  const R = stick.max || 70;
+  const home = stickHome();
+  const ox = stick.id !== null ? stick.ox : home.x;
+  const oy = stick.id !== null ? stick.oy : home.y;
+  const R = stick.id !== null ? stick.max : home.R;
   g.fillStyle = 'rgba(255,255,255,0.10)';
   g.strokeStyle = 'rgba(255,255,255,0.55)';
   g.lineWidth = 2;

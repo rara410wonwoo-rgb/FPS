@@ -221,6 +221,7 @@ export class Match {
 
     for (const p of this.players.values()) {
       const weaponType = currentWeapon(p)?.type;
+      const wasDropping = !!p.drop;
       let moved = false;
       if (p.bot) {
         if (p.alive && !frozen) moved = stepMovement(this.map.index, p, p.control, dt, weaponType);
@@ -246,6 +247,7 @@ export class Match {
         }
       }
       p.moving = moved;
+      if (wasDropping && !p.drop) p.landedAt = this.time;
       if (!p.alive) continue;
       p.aim = p.control.aim;
       if (frozen) { p.control.fire = false; continue; }

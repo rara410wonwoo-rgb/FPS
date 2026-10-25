@@ -1,7 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { rayAABB, rayCircle, resolveCircleAABB } from '../shared/collision.js';
-import { WEAPONS, MAX_HP } from '../shared/config.js';
+import { WEAPONS, MAX_HP, LANDING_PROTECTION_S } from '../shared/config.js';
+import { applyDamage } from '../server/combat.js';
 import { emptyMatch, place, stepN } from './helpers.js';
 
 const fireInput = (m, id) => { const p = m.players.get(id); p.queue.push({ seq: ++p.lastQueuedSeq, mx: 0, mz: 0, aim: p.control.aim, fire: true, ads: false }); p.lastInputAt = Infinity; };
@@ -45,6 +46,20 @@ describe('combat', () => {
     const shots = m.drainEvents().filter((e) => e.type === 'shot');
     assert.ok(shots.length > 3);
     for (const s of shots) assert.ok(s.tr[0].x1 <= 4 + 1e-6, 'the trace stops at the wall');
+  });
+
+  it('no damage from players while parachuting or just after landing', () => {
+    const m = emptyMatch();
+    const a = place(m, 'A', 0, 0, 0); const b = place(m, 'B', 9, 0);
+    b.drop = 3;
+    applyDamage(m, b, 30, a, 'kestrel');
+    assert.equal(b.hp, MAX_HP, 'parachuting');
+    b.drop = 0; b.landedAt = m.time;
+    applyDamage(m, b, 30, a, 'kestrel');
+    assert.equal(b.hp, MAX_HP, 'just landed');
+    b.landedAt = m.time - LANDING_PROTECTION_S - 0.1;
+    applyDamage(m, b, 30, a, 'kestrel');
+    assert.equal(b.hp, MAX_HP - 30, 'protection over');
   });
 
   it('without a wall, shots deal damage', () => {

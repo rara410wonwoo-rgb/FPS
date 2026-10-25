@@ -445,6 +445,7 @@ export class RoomManager {
               pcConnected: !!h.client,
               aim: p ? Math.round(p.aim * 1000) / 1000 : 0,
               stance: p ? stanceOf(p) : 0,
+              drop: p?.drop ?? 0,
             });
           }
         }

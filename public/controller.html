@@ -13,7 +13,7 @@
   <style>
     :root { --font: system-ui, -apple-system, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; --accent: #f0b84a; --danger: #ff5a3c; --ui: rgba(255, 255, 255, 0.16); --line: rgba(255, 255, 255, 0.55); }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    html, body { margin: 0; height: 100%; overflow: hidden; color: #f2efe6; font-family: var(--font); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
+    html, body { margin: 0; height: 100%; height: 100dvh; overflow: hidden; color: #f2efe6; font-family: var(--font); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
     body { touch-action: none; background: radial-gradient(ellipse at 50% 35%, #3b4a5c 0%, #20262c 55%, #121411 100%); }
     [hidden] { display: none !important; }
     #pad { position: fixed; inset: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); touch-action: none; }
@@ -71,6 +71,9 @@
     #editbar button.save { background: var(--accent); color: #1d1a10; border-color: var(--accent); }
     #edit-sel { color: var(--accent); font-weight: 800; min-width: 7em; text-align: center; }
     button.alt { font: inherit; font-weight: 800; padding: 10px; background: none; border: 1px solid #4a4638; color: #ece6d6; touch-action: manipulation; }
+    #drophint { position: fixed; top: 22%; left: 50%; transform: translateX(-50%); z-index: 6; background: rgba(0,0,0,0.72); border: 1px solid var(--accent); padding: 8px 16px; border-radius: 8px; font-weight: 800; font-size: 14px; pointer-events: none; white-space: nowrap; }
+    #jump.pulse { animation: pulse 0.9s ease-in-out infinite; border-color: var(--accent); }
+    @keyframes pulse { 50% { box-shadow: 0 0 0 10px rgba(240,184,74,0.35); } }
     #rotate { z-index: 30; }
     #rotate .icon { font-size: 54px; text-align: center; }
     @media (orientation: landscape) { #rotate { display: none !important; } }
@@ -78,9 +81,10 @@
 </head>
 <body>
   <div id="pad">
-    <div id="movezone"><canvas id="stick"></canvas><div id="sprintlock">▲ Push all the way to sprint</div></div>
-    <div id="stickhome" title="Joystick"></div>
+    <canvas id="stick"></canvas>
+    <div id="movezone"><div id="sprintlock">▲ Push all the way to sprint</div></div>
     <div id="lookzone"><canvas id="lookpad"></canvas></div>
+    <div id="stickhome" title="Joystick"></div>
     <div id="fire" class="btn" title="Fire"><svg viewBox="0 0 24 24"><path d="M9 3h6l1 4v13H8V7z"/><path d="M8 11h8"/></svg>FIRE</div>
     <div id="fire2" class="btn" title="Fire"><svg viewBox="0 0 24 24"><path d="M9 3h6l1 4v13H8V7z"/></svg></div>
     <div id="ads" class="btn" title="Aim down sights"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg>ADS</div>
@@ -100,6 +104,7 @@
     <button id="edit-cancel" type="button">Cancel</button>
     <button id="edit-save" class="save" type="button">Save</button>
   </div>
+  <div id="drophint" hidden></div>
   <div id="tap-full" hidden>✅ Connected · tap the screen once to go full screen</div>
   <div id="status"><span id="st-conn" class="warn">Not connected</span><span id="st-ping"></span><span id="st-game"></span></div>
   <div id="hp"><span id="hp-text">HP 100</span><div class="bar"><div class="fill" id="hp-fill"></div></div></div>

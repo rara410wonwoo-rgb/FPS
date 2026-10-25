@@ -8,6 +8,7 @@ const TOKEN_KEY = 'polyzone.controller';
 const SEND_MS = 33; // at most 30Hz
 const HEARTBEAT_MS = 100; // shorter than the server timeout (300ms)
 const DEAD = 0.15;
+const JUMP_MIN_MS = 150; // shortest JUMP press sent to the server
 
 const state = { mx: 0, mz: 0, aim: 0, fire: false, ads: false, reload: false, interact: false, swap: false, jump: false, crouch: false, sprint: false };
 const stickV = { x: 0, y: 0 }; // stick value in screen space (up = forward)
@@ -43,6 +44,11 @@ socket.on(S2C.CONTROLLER_STATE, (d) => {
   // Sync the view to the server aim at match start or if we haven't synced yet
   if (typeof d.aim === 'number' && (!yawSynced || (d.state !== lastGameState && d.state === 'COUNTDOWN'))) { yaw = d.aim; yawSynced = true; }
   lastGameState = d.state;
+  // Aircraft / parachute: movement does nothing until you jump out, so say so
+  const drop = d.alive ? d.drop ?? 0 : 0;
+  $('drophint').hidden = !drop;
+  $('drophint').textContent = drop === 1 ? '✈ In the aircraft — tap JUMP to jump out' : drop === 2 ? 'Tap JUMP to open the parachute' : '🪂 Parachute — steer with the joystick';
+  $('jump').classList.toggle('pulse', drop === 1 || drop === 2);
   $('hp-text').textContent = d.alive ? `HP ${d.hp}` : 'Eliminated';
   $('hp-fill').style.width = `${Math.max(0, Math.min(100, d.hp))}%`;
   if (d.weapon) $('weapon-label').textContent = `${d.weapon.toUpperCase()} ${d.mag}/${d.reserve}`;
@@ -181,15 +187,20 @@ function updateMove() {
 const stickCanvas = $('stick');
 const stick = { id: null, ox: 0, oy: 0, x: 0, y: 0, max: 70 };
 const moveZone = $('movezone');
-// Joystick rest spot and radius, from the #stickhome element (moved/resized in the layout editor)
+// Joystick rest spot and radius in pad coordinates, from the #stickhome element (moved/resized in the layout editor).
+// Cached so the draw loop does not force a layout every frame.
+let homeCache = null;
 function stickHome() {
-  const r = moveZone.getBoundingClientRect();
+  if (homeCache) return homeCache;
+  const r = $('pad').getBoundingClientRect();
   const h = $('stickhome').getBoundingClientRect();
-  return { x: h.left + h.width / 2 - r.left, y: h.top + h.height / 2 - r.top, R: h.width / 2 };
+  homeCache = { x: h.left + h.width / 2 - r.left, y: h.top + h.height / 2 - r.top, R: h.width / 2 };
+  return homeCache;
 }
+window.addEventListener('resize', () => { homeCache = null; });
 moveZone.addEventListener('pointerdown', (e) => {
   if (stick.id !== null) return;
-  const r = moveZone.getBoundingClientRect();
+  const r = $('pad').getBoundingClientRect();
   const home = stickHome();
   stick.id = e.pointerId;
   stick.max = home.R;
@@ -201,7 +212,7 @@ moveZone.addEventListener('pointerdown', (e) => {
 });
 moveZone.addEventListener('pointermove', (e) => { if (e.pointerId === stick.id) moveStick(e); });
 function moveStick(e) {
-  const r = moveZone.getBoundingClientRect();
+  const r = $('pad').getBoundingClientRect();
   stick.x = e.clientX - r.left; stick.y = e.clientY - r.top;
   let dx = (stick.x - stick.ox) / stick.max;
   let dy = (stick.y - stick.oy) / stick.max;
@@ -248,6 +259,7 @@ for (const [id, kind] of BUTTONS) {
     if (b.id !== null) return;
     b.id = e.pointerId;
     b.lx = e.clientX; b.ly = e.clientY;
+    b.downAt = performance.now();
     capture(el, e);
     el.classList.add('on');
     if (id === 'fire' || id === 'fire2') state.fire = true;
@@ -269,7 +281,8 @@ for (const [id, kind] of BUTTONS) {
     b.id = null;
     el.classList.remove('on');
     if (id === 'fire' || id === 'fire2') state.fire = buttons.get(id === 'fire' ? 'fire2' : 'fire').id !== null;
-    if (id === 'jump') state.jump = false;
+    // Keep a quick JUMP tap held for a few server ticks so it is never missed (jumping out of the aircraft)
+    if (id === 'jump') { const held = performance.now() - b.downAt; if (held >= JUMP_MIN_MS) state.jump = false; else setTimeout(() => { if (b.id === null) { state.jump = false; send(true); } }, JUMP_MIN_MS - held); }
     send(true);
   };
   el.addEventListener('pointerup', up);
@@ -320,6 +333,17 @@ function applyLayout(l) {
     el.style.top = moved ? `${p.y * 100}%` : '';
     el.style.scale = p.s && p.s !== 1 ? String(p.s) : '';
   }
+  homeCache = null;
+  // The movement zone sits on the joystick's side of the screen and always covers the joystick
+  const sx = l.buttons.stickhome?.x ?? 0.14;
+  const right = sx > 0.5;
+  const width = Math.min(70, Math.max(45, ((right ? 1 - sx : sx) + 0.15) * 100));
+  moveZone.style.left = right ? 'auto' : '0';
+  moveZone.style.right = right ? '0' : 'auto';
+  moveZone.style.width = `${width}%`;
+  lookZone.style.left = right ? '0' : 'auto';
+  lookZone.style.right = right ? 'auto' : '0';
+  lookZone.style.width = `${100 - width}%`;
 }
 applyLayout(layout);
 
@@ -328,7 +352,7 @@ function select(id) {
   for (const lid of LAYOUT_IDS) $(lid).classList.toggle('selected', lid === id);
   const size = $('edit-size');
   size.disabled = !id;
-  size.value = String(Math.round((editing.buttons[id]?.s ?? 1) * 100));
+  size.value = String(Math.round((editing?.buttons[id]?.s ?? 1) * 100));
   $('edit-sel').textContent = id ? ($(id).title || 'Swap weapon') : 'Drag a button';
 }
 function openEditor() {
@@ -345,12 +369,17 @@ function closeEditor(save) {
     layout = editing;
     try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch { /* private mode: kept for this visit only */ }
   }
-  editing = null; drag = null;
   select(null);
-  applyLayout(layout);
+  editing = null; drag = null;
   document.body.classList.remove('editing');
   $('editbar').hidden = true;
+  applyLayout(layout);
   if (!paired) showStart();
+  else if (save) goFullscreen(); // Save is a tap, so the browser allows fullscreen + landscape lock here
+}
+async function goFullscreen() {
+  try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }); } catch { /* unsupported (iPhone Safari) */ }
+  try { await screen.orientation?.lock?.('landscape'); } catch { /* unsupported */ }
 }
 $('layout-open').addEventListener('click', openEditor);
 $('layout-start').addEventListener('click', openEditor);
@@ -388,8 +417,7 @@ pad.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.pid) return;
   const pr = pad.getBoundingClientRect();
   const b = (editing.buttons[drag.id] ??= {});
-  // The joystick has to stay inside the left movement zone
-  b.x = clamp((e.clientX - drag.dx - pr.left) / pr.width, 0.02, drag.id === 'stickhome' ? 0.4 : 0.98);
+  b.x = clamp((e.clientX - drag.dx - pr.left) / pr.width, 0.02, 0.98);
   b.y = clamp((e.clientY - drag.dy - pr.top) / pr.height, 0.04, 0.96);
   applyLayout(editing);
 }, true);
@@ -424,15 +452,19 @@ function fit(c) {
   if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
   return dpr;
 }
+let lastFrame = '';
 function draw() {
   requestAnimationFrame(draw);
+  const home = stickHome();
+  const frame = `${stick.id}|${stick.ox}|${stick.oy}|${stickV.x}|${stickV.y}|${state.sprint}|${home.x}|${home.y}|${home.R}|${yaw.toFixed(3)}|${look.id}|${look.x}|${look.y}|${stickCanvas.clientWidth}x${stickCanvas.clientHeight}`;
+  if (frame === lastFrame) return;
+  lastFrame = frame;
   let dpr = fit(stickCanvas);
   let g = stickCanvas.getContext('2d');
   g.clearRect(0, 0, stickCanvas.width, stickCanvas.height);
   g.save();
   g.scale(dpr, dpr);
-  // Joystick: drawn at its default lower-left spot when not touched
-  const home = stickHome();
+  // Joystick: drawn at its home spot when not touched
   const ox = stick.id !== null ? stick.ox : home.x;
   const oy = stick.id !== null ? stick.oy : home.y;
   const R = stick.id !== null ? stick.max : home.R;

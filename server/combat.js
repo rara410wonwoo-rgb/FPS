@@ -1,5 +1,5 @@
 // Server-authoritative combat: fire rate, ammo, reloading, hitscan, damage
-import { WEAPONS, HIT_RADIUS, MUZZLE_OFFSET, ADS_SPREAD_MULT, MOVEMENT } from '../shared/config.js';
+import { WEAPONS, HIT_RADIUS, MUZZLE_OFFSET, ADS_SPREAD_MULT, MOVEMENT, LANDING_PROTECTION_S } from '../shared/config.js';
 import { eyeHeight } from '../shared/aim.js';
 import { rayBox3 } from '../shared/ray3.js';
 
@@ -120,6 +120,8 @@ export function fireShot(match, p, w, def) {
 
 export function applyDamage(match, target, amount, attacker, cause) {
   if (!target.alive || amount <= 0) return;
+  // Players can't shoot while parachuting, so they can't be shot then either, nor right after landing
+  if (attacker && (target.drop || match.time - (target.landedAt ?? -Infinity) < LANDING_PROTECTION_S)) return;
   target.hp -= amount;
   target.lastHitAt = match.time;
   if (attacker) attacker.damageDealt += amount;

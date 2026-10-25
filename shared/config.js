@@ -21,6 +21,7 @@ export const ADS_SPEED_MULT = 1;
 export const ADS_SPREAD_MULT = 0;
 export const MUZZLE_OFFSET = 0.95;
 export const PICKUP_RANGE = 2.4;
+export const LANDING_PROTECTION_S = 3; // no damage from players while parachuting and this long after landing
 
 // Movement: sprint, crouch, slide, jump, vault over low cover
 export const MOVEMENT = {
